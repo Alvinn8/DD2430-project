@@ -24,5 +24,11 @@ jobs:
         pip install pylint
     - name: Analysing the code with pylint
       run: |
-        pylint --max-line-length=120 $(git ls-files '*.py')
+        FILES=$(git ls-files '*.py')
+        if [ -z "$FILES" ]; then
+          echo "No Python files found to lint. Skipping..."
+          exit 0
+        else
+          pylint --max-line-length=120 $FILES
+        fi
 
