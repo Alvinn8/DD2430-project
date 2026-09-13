@@ -4,7 +4,7 @@ import numpy as np
 from scipy.ndimage import uniform_filter1d
 
 
-def find_rapid_decline_start_threshold(
+def find_break_points(
     data, threshold_multiplier=0.3, smoothing_window=5, search_window_fraction=0.3
 ):
     valley_min_idx = data["HeatFlow"].idxmin()
@@ -50,16 +50,30 @@ def find_rapid_decline_start_threshold(
     pos = steepest_pos
     while pos >= 0 and is_steep[pos]:
         pos -= 1
-    cutoff_position = pos + 1
+    start_decline = pos + 1
 
-    cutoff_position = max(0, min(cutoff_position, n - 1))
-    cutoff_index = left_df.index[cutoff_position]
+    last_slope = slope_values[pos + 1]
+    while pos >= 0 and np.isclose(slope_values[pos], last_slope, rtol=1):
+        pos -= 1
+    start_plateau = pos + 1
 
-    print(f"Cutoff index (original data): {cutoff_index}")
-    print(f"Cutoff temperature: {data.loc[cutoff_index, 'Temperature']:.2f}°C")
+    start_decline = max(0, min(start_decline, n - 1))
+    start_decline_index = left_df.index[start_decline]
+
+    start_plateau = max(0, min(start_plateau, n - 1))
+    start_plateau_index = left_df.index[start_plateau]
+
+    print(f"Start of decline index (original data): {start_decline_index}")
+    print(
+        f"Start of decline temperature: {data.loc[start_decline_index, 'Temperature']:.2f}°C"
+    )
+    print(f"Start of plateau index (original data): {start_plateau_index}")
+    print(
+        f"Start of plateau temperature: {data.loc[start_plateau_index, 'Temperature']:.2f}°C"
+    )
     print()
 
-    return cutoff_index, valley_min_idx, left_df
+    return start_plateau_index, start_decline_index, valley_min_idx, left_df
 
 
 def main(**kwargs):
@@ -68,16 +82,29 @@ def main(**kwargs):
     threshold_multiplier = kwargs.get("threshold_multiplier", 0.3)
     search_window_fraction = kwargs.get("search_window_fraction", 0.3)
 
-    cutoff_index, valley_min_idx, analysis_df = find_rapid_decline_start_threshold(
-        data, threshold_multiplier, search_window_fraction=search_window_fraction
+    start_plateau_index, start_decline_index, valley_min_idx, analysis_df = (
+        find_break_points(
+            data, threshold_multiplier, search_window_fraction=search_window_fraction
+        )
     )
 
-    rapid_decline_df = data.loc[cutoff_index:valley_min_idx].copy()
+    rapid_decline_df = data.loc[start_decline_index:valley_min_idx].copy()
+    plateau_df = data.loc[start_plateau_index:start_decline_index].copy()
 
     print(f"Valley minimum at index: {valley_min_idx}")
-    print(f"Rapid decline starts at index: {cutoff_index}")
-    print(f"Temperature at start: {data.loc[cutoff_index, 'Temperature']:.2f}°C")
-    print(f"Heat flow at start: {data.loc[cutoff_index, 'HeatFlow']:.2f} mW")
+    print(f"Rapid decline starts at index: {start_decline_index}")
+    print(
+        f"Temperature at the start of rapid decline: {data.loc[start_decline_index, 'Temperature']:.2f}°C"
+    )
+    print(
+        f"Temperature at the start of plateau: {data.loc[start_plateau_index, 'Temperature']:.2f}°C"
+    )
+    print(
+        f"Heat flow at the start of rapid decline: {data.loc[start_decline_index, 'HeatFlow']:.2f} mW"
+    )
+    print(
+        f"Heat flow at the start of plateau: {data.loc[start_plateau_index, 'HeatFlow']:.2f} mW"
+    )
     print()
 
     plt.figure(figsize=(12, 7))
@@ -95,14 +122,31 @@ def main(**kwargs):
         linewidth=3,
         label="Rapid Decline",
     )
+    plt.plot(
+        plateau_df["Temperature"],
+        plateau_df["HeatFlow"],
+        "g-",
+        linewidth=3,
+        label="Plateau",
+    )
     plt.scatter(
-        np.array([data.loc[cutoff_index, "Temperature"]]),
-        np.array([data.loc[cutoff_index, "HeatFlow"]]),
+        np.array([data.loc[start_decline_index, "Temperature"]]),
+        np.array([data.loc[start_decline_index, "HeatFlow"]]),
         color="red",
         s=150,
         zorder=5,
-        label="Detected Start",
+        label="Detected Decline Start",
         edgecolors="darkred",
+        linewidths=2,
+    )
+    plt.scatter(
+        np.array([data.loc[start_plateau_index, "Temperature"]]),
+        np.array([data.loc[start_plateau_index, "HeatFlow"]]),
+        color="green",
+        s=150,
+        zorder=5,
+        label="Detected Plateau Start",
+        edgecolors="darkgreen",
         linewidths=2,
     )
     plt.xlabel("Temperature (°C)", fontsize=12)
@@ -118,4 +162,4 @@ def main(**kwargs):
 
 
 if __name__ == "__main__":
-    main(threshold_multiplier=0.03, search_window_fraction=0.4)
+    main(threshold_multiplier=0.029, search_window_fraction=0.4)
