@@ -80,3 +80,11 @@ def find_break_points(
         start_decline_index,
         valley_min_idx,
     )
+
+
+def find_intersection(slope1, intercept1, slope2, intercept2):
+    if slope1 == slope2:
+        raise ValueError("Lines are parallel and do not intersect.")
+    x_int = (intercept2 - intercept1) / (slope1 - slope2)
+    y_int = slope1 * x_int + intercept1
+    return x_int, y_int

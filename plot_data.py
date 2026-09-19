@@ -2,17 +2,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from tools.DSCReader import read_dsc_file
-from tools.MeltingPointAnalysis import find_break_points
-
-
-def find_intersection(m1, b1, m2, b2):
-    if np.isclose(m1, m2):
-        raise ValueError("Lines are parallel and do not intersect.")
-
-    x_intersect = (b2 - b1) / (m1 - m2)
-    y_intersect = m1 * x_intersect + b1
-
-    return x_intersect, y_intersect
+from tools.MeltingPointAnalysis import find_break_points, find_intersection
 
 
 def main(**kwargs):
