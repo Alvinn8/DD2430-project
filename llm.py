@@ -1,6 +1,22 @@
 from collections.abc import Generator
+from dataclasses import dataclass
+import mimetypes
 import google.genai
 import google.genai.chats
+import google.genai.types
+
+@dataclass
+class Image:
+    data: bytes
+    mime_type: str
+
+    @staticmethod
+    def from_file(path: str) -> "Image":
+        mime_type, _ = mimetypes.guess_type(path)
+        if mime_type is None:
+            raise ValueError(f"Could not guess mime type for {path}")
+        with open(path, "rb") as f:
+            return Image(f.read(), mime_type)
 
 class LLMProvider:
     def list_models(self) -> list[str]:
@@ -9,7 +25,7 @@ class LLMProvider:
         raise NotImplementedError("Abstract method.")
 
 class LLMChat:
-    def send(self, prompt: str) -> Generator[str]:
+    def send(self, prompt: str, images: list[Image] | None = None) -> Generator[str]:
         raise NotImplementedError("Abstract method.")
 
 # Google Cloud
@@ -34,6 +50,9 @@ class GoogleCloudChat(LLMChat):
     def __init__(self, chat: google.genai.chats.Chat):
         self.chat = chat
 
-    def send(self, prompt: str) -> Generator[str]:
-        stream = self.chat.send_message_stream(prompt)
+    def send(self, prompt: str, images: list[Image] | None = None) -> Generator[str]:
+        message: list[str | google.genai.types.Part] = [prompt]
+        for image in images or []:
+            message.append(google.genai.types.Part.from_bytes(data=image.data, mime_type=image.mime_type))
+        stream = self.chat.send_message_stream(message)
         return (chunk.text for chunk in stream if chunk.text is not None)

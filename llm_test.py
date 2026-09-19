@@ -1,4 +1,4 @@
-from llm import LLMProvider, GoogleCloudProvider
+from llm import Image, LLMProvider, GoogleCloudProvider
 
 def main():
     provider = choose_provider()
@@ -10,8 +10,11 @@ def main():
         if prompt.lower() == 'exit':
             break
 
+        image_path = input("Attach an image? (path or leave blank): ")
+        images = [Image.from_file(image_path)] if image_path else None
+
         try:
-            for chunk in chat.send(prompt):
+            for chunk in chat.send(prompt, images):
                 print(chunk, end='', flush=True)
             print()
         except Exception as e:
