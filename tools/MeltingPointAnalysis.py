@@ -122,6 +122,56 @@ def linear_fit(x, y) -> tuple[float, float]:
     return slope, intercept
 
 
+def plot_dsc_data(
+    data, plateau_region, decline_region, intersection_point, baseline, decline
+):
+    """
+    Plot the DSC data along with the identified plateau and rapid decline regions,
+    the intersection point, and the fitted baseline and decline lines.
+    Arguments:
+    - data: DataFrame containing 'Temperature' and 'HeatFlow' columns.
+    - plateau_region: Tuple of (start_index, end_index) for the plateau region.
+    - decline_region: Tuple of (start_index, end_index) for the rapid decline region.
+    - intersection_point: Tuple of (x, y) coordinates of the intersection point.
+    - baseline: Tuple of (x_values, y_values) for the fitted baseline line.
+    - decline: Tuple of (x_values, y_values) for the fitted rapid decline line.
+    """
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(data["Temperature"], data["HeatFlow"], label="DSC Data", color="blue")
+    plt.plot(
+        data.loc[plateau_region[0] : plateau_region[1], "Temperature"],
+        data.loc[plateau_region[0] : plateau_region[1], "HeatFlow"],
+        color="green",
+        linewidth=3,
+        label="Plateau Region",
+    )
+    plt.plot(
+        data.loc[decline_region[0] : decline_region[1], "Temperature"],
+        data.loc[decline_region[0] : decline_region[1], "HeatFlow"],
+        color="red",
+        linewidth=3,
+        label="Rapid Decline Region",
+    )
+    plt.scatter(
+        intersection_point[0],
+        intersection_point[1],
+        color="black",
+        zorder=5,
+        label=f"Melting Point: {intersection_point[0]:.2f} °C",
+    )
+    plt.plot(
+        baseline[0], baseline[1], color="green", linestyle="--", label="Baseline Fit"
+    )
+    plt.plot(decline[0], decline[1], color="red", linestyle="--", label="Decline Fit")
+    plt.xlabel("Temperature (°C)")
+    plt.ylabel("Heat Flow (mW)")
+    plt.title("DSC Analysis")
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+
 def analyze_dsc_data(data, smoothing_window=11):
     """
     Analyze DSC data to find the melting point and plot the results.
@@ -137,22 +187,33 @@ def analyze_dsc_data(data, smoothing_window=11):
     plateau_df = data.loc[start_plateau_index:end_of_plateau_index].copy()
 
     clean_plateau = plateau_df.dropna(subset=["Temperature", "HeatFlow"])
-    slope, intercept = np.polyfit(
-        clean_plateau["Temperature"], clean_plateau["HeatFlow"], 1
+    slope, intercept = linear_fit(
+        clean_plateau["Temperature"], clean_plateau["HeatFlow"]
     )
 
     clean_rapid_decline = rapid_decline_df.dropna(subset=["Temperature", "HeatFlow"])
-    rapid_decline_slope, rapid_decline_intercept = np.polyfit(
-        clean_rapid_decline["Temperature"], clean_rapid_decline["HeatFlow"], 1
-    )
-
-    full_baseline_y = slope * data["Temperature"] + intercept
-    full_rapid_decline_y = (
-        rapid_decline_slope * data["Temperature"] + rapid_decline_intercept
+    rapid_decline_slope, rapid_decline_intercept = linear_fit(
+        clean_rapid_decline["Temperature"], clean_rapid_decline["HeatFlow"]
     )
 
     x_int, y_int = find_intersection(
         slope, intercept, rapid_decline_slope, rapid_decline_intercept
     )
 
+    baseline_x = data.loc[start_plateau_index:valley_min_idx, "Temperature"].copy()
+    baseline_y = slope * baseline_x + intercept
+    decline_x = data.loc[
+        end_of_plateau_index - 10 : valley_min_idx, "Temperature"
+    ].copy()
+    decline_y = rapid_decline_slope * decline_x + rapid_decline_intercept
+
     print(f"Detected Melting Point: {x_int:.2f} °C, Heat Flow: {y_int:.2f} mW")
+
+    plot_dsc_data(
+        data,
+        (start_plateau_index, end_of_plateau_index),
+        (start_decline_index, valley_min_idx),
+        (x_int, y_int),
+        (baseline_x, baseline_y),
+        (decline_x, decline_y),
+    )
