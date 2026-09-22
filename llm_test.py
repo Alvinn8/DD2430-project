@@ -1,13 +1,17 @@
+"""Testing the llm module."""
+
 from llm import Image, LLMProvider, GoogleCloudProvider
 
+
 def main():
+    """Main function for testing the LLM code."""
     provider = choose_provider()
     model = choose_model(provider)
     chat = provider.new_chat(model)
 
     while True:
         prompt = input("Enter your prompt (or type 'exit' to quit): ")
-        if prompt.lower() == 'exit':
+        if prompt.lower() == "exit":
             break
 
         image_path = input("Attach an image? (path or leave blank): ")
@@ -15,22 +19,25 @@ def main():
 
         try:
             for chunk in chat.send(prompt, images):
-                print(chunk, end='', flush=True)
+                print(chunk, end="", flush=True)
             print()
         except Exception as e:
             print(f"Error: {e}")
 
+
 def choose_provider() -> LLMProvider:
+    """Prompt the user to choose a provider and return the LLMProvider instance."""
     print("Available providers:")
     print("1. Google Cloud")
     provider_id = input("Choose the provider: ")
     if provider_id == "1":
         project = input("Enter your Google Cloud project ID: ")
         return GoogleCloudProvider(project)
-    else:
-        raise ValueError("Invalid provider.")
+    raise ValueError("Invalid provider.")
+
 
 def choose_model(provider: LLMProvider) -> str:
+    """Prompt the user to choose a model and return the model name."""
     models = provider.list_models()
     print("Available models:")
     for i, model in enumerate(models):
@@ -40,6 +47,7 @@ def choose_model(provider: LLMProvider) -> str:
         return models[model_id]
     else:
         raise ValueError("Invalid model selection.")
+
 
 if __name__ == "__main__":
     main()
