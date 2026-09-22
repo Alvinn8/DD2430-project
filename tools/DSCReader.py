@@ -1,3 +1,7 @@
+"""Reader utilities for DSC input data files."""
+
+# pylint: disable=invalid-name
+
 import pandas as pd
 
 

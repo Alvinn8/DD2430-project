@@ -1,3 +1,7 @@
+"""Utilities for DSC melting-point detection and visualization."""
+
+# pylint: disable=invalid-name
+
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal import savgol_filter
@@ -32,20 +36,20 @@ def find_break_points(data, smoothing_window=11) -> tuple[int, int, int, int]:
 
     # Calculate 2nd derivative using Savitzky-Golay filter to prevent noise explosion
     # polyorder=3 allows capturing curved peaks while smoothing
-    dT = np.mean(np.diff(data["Temperature"].values))
+    delta_t = np.mean(np.diff(data["Temperature"].values))
     smoothed_1st_deriv = savgol_filter(
         data["HeatFlow"].values,
         window_length=window_length,
         polyorder=3,
         deriv=1,
-        delta=dT,
+        delta=delta_t,
     )
     smoothed_2nd_deriv = savgol_filter(
         data["HeatFlow"].values,
         window_length=window_length,
         polyorder=3,
         deriv=2,
-        delta=dT,
+        delta=delta_t,
     )
     data["first_derivative"] = smoothed_1st_deriv
     data["second_derivative"] = smoothed_2nd_deriv
@@ -122,6 +126,7 @@ def linear_fit(x, y) -> tuple[float, float]:
     return slope, intercept
 
 
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 def plot_dsc_data(
     data, plateau_region, decline_region, intersection_point, baseline, decline
 ):
@@ -172,6 +177,7 @@ def plot_dsc_data(
     plt.show()
 
 
+# pylint: disable=too-many-locals
 def analyze_dsc_data(data, smoothing_window=11):
     """
     Analyze DSC data to find the melting point and plot the results.
