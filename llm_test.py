@@ -45,8 +45,7 @@ def choose_model(provider: LLMProvider) -> str:
     model_id = int(input("Choose a model by number: ")) - 1
     if 0 <= model_id < len(models):
         return models[model_id]
-    else:
-        raise ValueError("Invalid model selection.")
+    raise ValueError("Invalid model selection.")
 
 
 if __name__ == "__main__":
