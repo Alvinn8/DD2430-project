@@ -625,6 +625,8 @@ class CSVAnalyzerApp:
         ):
             return
 
+        curr_xlim = (0, 0)
+        curr_ylim = (0, 0)
         if preserve_limits:
             curr_xlim = self.ax.get_xlim()
             curr_ylim = self.ax.get_ylim()

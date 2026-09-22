@@ -1,8 +1,5 @@
-import matplotlib.pyplot as plt
-import pandas as pd
-import numpy as np
 from tools.DSCReader import read_dsc_file
-from tools.MeltingPointAnalysis import find_break_points, analyze_dsc_data
+from tools.MeltingPointAnalysis import analyze_dsc_data
 
 
 def main(**kwargs):
