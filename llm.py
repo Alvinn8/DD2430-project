@@ -25,6 +25,13 @@ class Image:
         with open(path, "rb") as f:
             return Image(f.read(), mime_type)
 
+class LLMChat:
+    """A chat session with a LLM model."""
+
+    def send(self, prompt: str, images: list[Image] | None = None) -> Generator[str]:
+        """Send a prompt to the model and return a generator of response chunks."""
+        raise NotImplementedError("Abstract method.")
+
 
 class LLMProvider:
     """An abstract provider for LLM models."""
@@ -37,13 +44,6 @@ class LLMProvider:
         """Create a new chat session with the given model."""
         raise NotImplementedError("Abstract method.")
 
-
-class LLMChat:
-    """A chat session with a LLM model."""
-
-    def send(self, prompt: str, images: list[Image] | None = None) -> Generator[str]:
-        """Send a prompt to the model and return a generator of response chunks."""
-        raise NotImplementedError("Abstract method.")
 
 
 # Google Cloud
