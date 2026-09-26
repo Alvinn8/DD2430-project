@@ -1,6 +1,6 @@
 """Testing the llm module."""
 
-from llm import Image, LLMProvider, GoogleCloudProvider
+from apps.llm import Image, LLMProvider, GoogleCloudProvider
 
 
 def main():

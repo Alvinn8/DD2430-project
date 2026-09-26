@@ -112,3 +112,20 @@ class AnalysisResult(BaseModel):
                 "created_at": "2024-01-15T10:30:00",
             }
         }
+
+
+class ImageInput(BaseModel):
+    data: bytes
+    mime_type: str
+
+
+class ChatRequest(BaseModel):
+    prompt: str = Field(..., description="User prompt message")
+    model: Optional[str] = Field(
+        default="gemini-2.5-flash", description="Target Gemini model"
+    )
+
+
+class HealthResponse(BaseModel):
+    status: str
+    timestamp: str

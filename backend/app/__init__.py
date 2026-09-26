@@ -4,6 +4,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import settings
 from app.routes import health
+from app.routes import chat
 
 
 def create_app() -> FastAPI:
@@ -51,6 +52,9 @@ def _configure_routes(app: FastAPI) -> None:
 
     # Health check routes
     app.include_router(health.router)
+
+    # Chat routes
+    app.include_router(chat.router)
 
 
 if __name__ == "__main__":

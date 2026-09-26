@@ -35,14 +35,15 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
     ALLOWED_FILE_EXTENSIONS: List[str] = [".csv", ".txt", ".xls", ".xlsx"]
 
-    # Data Processing
-    DEFAULT_SMOOTHING_WINDOW: int = 5
-    MIN_DATA_POINTS: int = 10
-    CONFIDENCE_THRESHOLD: float = 0.5
+    # GCP
+    GCP_PROJECT_ID: str = ""
+    GCP_LOCATION: str = "europe-west1"
+    DEFAULT_MODEL: str = "gemini-2.5-flash"
 
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 settings = Settings()
