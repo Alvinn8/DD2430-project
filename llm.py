@@ -1,7 +1,7 @@
 """This module is an abstraction over the LLM providers that can be used
 in this application, such as Google Cloud, OpenAI, etc."""
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 import mimetypes
 import google.genai
@@ -25,6 +25,7 @@ class Image:
         with open(path, "rb") as f:
             return Image(f.read(), mime_type)
 
+
 class LLMChat:
     """A chat session with a LLM model."""
 
@@ -40,10 +41,9 @@ class LLMProvider:
         """List available models for this provider."""
         raise NotImplementedError("Abstract method.")
 
-    def new_chat(self, model: str) -> LLMChat:
+    def new_chat(self, model: str, tools: list[Callable] | None = None) -> LLMChat:
         """Create a new chat session with the given model."""
         raise NotImplementedError("Abstract method.")
-
 
 
 # Google Cloud
@@ -67,16 +67,19 @@ class GoogleCloudProvider(LLMProvider):
             model.name for model in self.client.models.list() if model.name is not None
         )
 
-    def new_chat(self, model: str) -> LLMChat:
+    def new_chat(self, model: str, tools: list[Callable] | None = None) -> LLMChat:
         chat = self.client.chats.create(model=model)
-        return GoogleCloudChat(chat)
+        return GoogleCloudChat(chat, tools)
 
 
 class GoogleCloudChat(LLMChat):
     """A chat session with a Google Cloud LLM model."""
 
-    def __init__(self, chat: google.genai.chats.Chat):
+    def __init__(
+        self, chat: google.genai.chats.Chat, tools: list[Callable] | None = None
+    ):
         self.chat = chat
+        self.tools = tools or []
 
     def send(self, prompt: str, images: list[Image] | None = None) -> Generator[str]:
         message: list[str | google.genai.types.Part] = [prompt]
@@ -86,5 +89,8 @@ class GoogleCloudChat(LLMChat):
                     data=image.data, mime_type=image.mime_type
                 )
             )
-        stream = self.chat.send_message_stream(message)
+        stream = self.chat.send_message_stream(
+            message,
+            google.genai.types.GenerateContentConfig(tools=self.tools),
+        )
         return (chunk.text for chunk in stream if chunk.text is not None)
