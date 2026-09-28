@@ -9,6 +9,12 @@ def main():
     model = choose_model(provider)
     chat = provider.new_chat(model)
 
+    with open("prompts/main.md", encoding="utf-8") as f:
+        system_prompt = f.read()
+    for chunk in chat.send(system_prompt):
+        print(chunk, end="", flush=True)
+    print()
+
     while True:
         prompt = input("Enter your prompt (or type 'exit' to quit): ")
         if prompt.lower() == "exit":
