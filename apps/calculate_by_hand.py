@@ -371,7 +371,9 @@ class CSVAnalyzerApp:  # pylint: disable=too-many-instance-attributes
                 or "HeatFlow" not in self.df.columns
             ):
                 messagebox.showerror(
-                    "Error", "CSV must contain 'Temperature' and 'HeatFlow' columns"
+                    "Error",
+                    "CSV must contain temperature_C and heat_flow_mW columns, "
+                    "or legacy Temperature and HeatFlow columns.",
                 )
                 self.df = None
                 return
@@ -736,10 +738,10 @@ class CSVAnalyzerApp:  # pylint: disable=too-many-instance-attributes
     def _style_axes(self) -> None:
         """Helper to apply standard styling to the Matplotlib axes."""
         self.ax.set_xlabel(
-            "Temperature", fontsize=11, fontweight="bold", color=self.colors["text"]
+            "Temperature (°C)", fontsize=11, fontweight="bold", color=self.colors["text"]
         )
         self.ax.set_ylabel(
-            "HeatFlow", fontsize=11, fontweight="bold", color=self.colors["text"]
+            "Heat Flow (mW)", fontsize=11, fontweight="bold", color=self.colors["text"]
         )
         self.ax.grid(True, alpha=0.2, linestyle="--", linewidth=0.5)
         self.ax.set_axisbelow(True)
