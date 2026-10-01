@@ -58,7 +58,7 @@ onMounted(scrollToBottom);
       </div>
 
       <!-- Messages -->
-      <TransitionGroup name="message" tag="div" class="space-y-5">
+      <TransitionGroup name="message" tag="div" class="flex flex-col space-y-5">
         <MessageBubble
           v-for="message in messages"
           :key="message.id"
