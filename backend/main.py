@@ -5,10 +5,11 @@ load_dotenv()
 
 import uvicorn
 
+app = create_app()
+
 
 def main():
     """Run the application"""
-    app = create_app()
 
     uvicorn.run(
         app,

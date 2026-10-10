@@ -1,15 +1,47 @@
 // src/composables/useChat.ts
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
+import { DEFAULT_MODEL } from "../config";
 import type { Message } from "../types/chat";
 
 export function useChat() {
   const inputText = ref("");
   const isTyping = ref(false);
   const messages = ref<Message[]>([]);
+  const availableModels = ref<string[]>([DEFAULT_MODEL]);
+  const selectedModel = ref(DEFAULT_MODEL);
 
-  const sendMessage = async () => {
+  const loadModels = async () => {
+    try {
+      const response = await fetch("http://localhost:8000/api/chat/models");
+      if (!response.ok) {
+        throw new Error(`Server returned status ${response.status}`);
+      }
+
+      const payload = (await response.json()) as { models?: string[] };
+      if (payload.models?.length) {
+        availableModels.value = payload.models;
+        if (!payload.models.includes(selectedModel.value)) {
+          selectedModel.value = payload.models[0];
+        }
+      }
+    } catch (error) {
+      console.error("Model listing error:", error);
+    }
+  };
+
+  const sendMessage = async (files: File[] = []) => {
     const text = inputText.value.trim();
-    if (!text || isTyping.value) return;
+    if ((!text && files.length === 0) || isTyping.value) return;
+
+    const attachments = await Promise.all(
+      files.map(async (file) => ({
+        name: file.name,
+        type: file.type,
+        ...(file.type.startsWith("image/")
+          ? { previewUrl: await readFileAsDataUrl(file) }
+          : { contentUrl: await readFileAsDataUrl(file) }),
+      })),
+    );
 
     // 1. Push user message
     const userMsg: Message = {
@@ -17,6 +49,7 @@ export function useChat() {
       text,
       sender: "user",
       timestamp: new Date(),
+      ...(attachments.length > 0 ? { attachments } : {}),
     };
     messages.value.push(userMsg);
     inputText.value = "";
@@ -28,10 +61,16 @@ export function useChat() {
     let botMsgCreated = false;
 
     try {
+      const body = new FormData();
+      body.append("prompt", text);
+      body.append("model", selectedModel.value);
+      for (const file of files) {
+        body.append("file", file);
+      }
+
       const response = await fetch("http://localhost:8000/api/chat/stream", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text }),
+        body,
       });
 
       if (!response.ok || !response.body) {
@@ -85,14 +124,26 @@ export function useChat() {
     }
   };
 
+  const readFileAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
   const clearChat = () => {
     messages.value = [];
   };
+
+  onMounted(loadModels);
 
   return {
     inputText,
     isTyping,
     messages,
+    availableModels,
+    selectedModel,
     sendMessage,
     clearChat,
   };

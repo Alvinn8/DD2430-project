@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import type { Message } from "../types/chat";
 import MarkdownIt from "markdown-it";
 import markdownItKatex from "@iktakahiro/markdown-it-katex";
@@ -11,6 +11,49 @@ import "katex/dist/katex.min.css";
 const props = defineProps<{
   message: Message;
 }>();
+
+const selectedAttachment = ref<{
+  name: string;
+  type: string;
+  url: string;
+} | null>(null);
+const selectedText = ref<string | null>(null);
+
+const closeAttachment = () => {
+  selectedAttachment.value = null;
+  selectedText.value = null;
+  document.removeEventListener("keydown", onKeydown);
+};
+
+const onKeydown = (event: KeyboardEvent) => {
+  if (event.key === "Escape") closeAttachment();
+};
+
+const openAttachment = async (attachment: {
+  name: string;
+  type: string;
+  previewUrl?: string;
+  contentUrl?: string;
+}) => {
+  const url = attachment.previewUrl ?? attachment.contentUrl;
+  if (!url) return;
+
+  selectedAttachment.value = {
+    name: attachment.name,
+    type: attachment.type,
+    url,
+  };
+  selectedText.value = null;
+  document.addEventListener("keydown", onKeydown);
+
+  if (!attachment.type.includes("pdf") && !attachment.type.startsWith("image/")) {
+    selectedText.value = await fetch(url).then((response) => response.text());
+  }
+};
+
+onBeforeUnmount(() => {
+  document.removeEventListener("keydown", onKeydown);
+});
 
 // 1. Initialize the Markdown parser with the KaTeX plugin
 const md = new MarkdownIt({
@@ -70,6 +113,29 @@ const parsedContent = computed(() => {
     >
       <!-- 3. Replace {{ message.text }} with v-html -->
       <div class="markdown-body" v-html="parsedContent"></div>
+      <div v-if="message.attachments" class="mt-3 flex flex-wrap gap-2">
+        <template
+          v-for="attachment in message.attachments"
+          :key="attachment.name"
+        >
+          <img
+            v-if="attachment.previewUrl"
+            :src="attachment.previewUrl"
+            alt="Attached image"
+            class="h-24 w-24 cursor-pointer rounded-xl object-cover shadow-sm ring-1 ring-white/70 transition-transform hover:scale-[1.03]"
+            @click="openAttachment(attachment)"
+          />
+          <span
+            v-else
+            class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl bg-white/40 text-lg ring-1 ring-white/70 transition-transform hover:scale-[1.05]"
+            aria-label="Attached file"
+            :title="`View ${attachment.name}`"
+            @click="openAttachment(attachment)"
+          >
+            📎
+          </span>
+        </template>
+      </div>
     </div>
 
     <span class="text-xs text-[#8791A5] mt-1.5 px-1">
@@ -81,6 +147,49 @@ const parsedContent = computed(() => {
       }}
     </span>
   </div>
+
+  <Teleport to="body">
+    <Transition name="attachment-dialog">
+      <div
+        v-if="selectedAttachment"
+        class="fixed inset-0 z-50 flex cursor-pointer items-center justify-center bg-[#293246]/55 p-4 backdrop-blur-md sm:p-6"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="`Preview of ${selectedAttachment.name}`"
+        @click.self="closeAttachment"
+      >
+        <button
+          type="button"
+          aria-label="Close attachment preview"
+          class="absolute right-5 top-5 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/20 text-2xl text-white transition-colors hover:bg-white/35"
+          @click="closeAttachment"
+        >
+          ×
+        </button>
+        <img
+          v-if="selectedAttachment.type.startsWith('image/')"
+          :src="selectedAttachment.url"
+          alt="Expanded attachment"
+          class="max-h-[90vh] max-w-[92vw] cursor-default rounded-2xl object-contain shadow-[0_20px_70px_rgba(0,0,0,0.28)]"
+        />
+        <iframe
+          v-else-if="selectedAttachment.type === 'application/pdf'"
+          :src="selectedAttachment.url"
+          :title="selectedAttachment.name"
+          class="h-[88vh] w-[min(92vw,900px)] cursor-default rounded-2xl bg-white shadow-[0_20px_70px_rgba(0,0,0,0.28)]"
+        />
+        <div
+          v-else
+          class="flex h-[min(82vh,720px)] w-[min(92vw,900px)] cursor-default flex-col overflow-hidden rounded-2xl bg-[#F8FAFF] shadow-[0_20px_70px_rgba(0,0,0,0.28)]"
+        >
+          <div class="border-b border-[#DCE3F0] px-5 py-3 text-sm font-medium text-[#43516B]">
+            {{ selectedAttachment.name }}
+          </div>
+          <pre class="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-5 text-left text-xs leading-6 text-[#43516B]">{{ selectedText ?? "Loading preview..." }}</pre>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -91,6 +200,7 @@ const parsedContent = computed(() => {
 */
 .markdown-body :deep(p) {
   margin-bottom: 0.75em;
+  line-height: 1.75;
   white-space: normal; /* Override whitespace-pre-wrap for normal markdown wrapping */
 }
 
@@ -154,7 +264,11 @@ const parsedContent = computed(() => {
 
 /* Reset line-height so vertical fractions and exponents don't collapse */
 .markdown-body :deep(.katex) {
+  display: inline-block;
+  font-size: 1.08em;
   line-height: normal !important;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
 /* Protect fraction lines from Tailwind's global border removal */
@@ -165,6 +279,30 @@ const parsedContent = computed(() => {
 /* Ensure display math has enough vertical breathing room */
 .markdown-body :deep(.katex-display) {
   margin: 1em 0;
-  padding: 0.5em 0;
+  min-height: 2.5em;
+  padding: 0.75em 0;
+  line-height: 1.5 !important;
+}
+
+.markdown-body :deep(.katex-display > .katex) {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.15em 0.25em;
+}
+
+.markdown-body :deep(.katex .vlist-t) {
+  vertical-align: middle;
+}
+
+.attachment-dialog-enter-active,
+.attachment-dialog-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.attachment-dialog-enter-from,
+.attachment-dialog-leave-to {
+  opacity: 0;
 }
 </style>

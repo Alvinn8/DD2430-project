@@ -6,15 +6,20 @@ import ChatComposer from "./ChatComposer.vue";
 import ChatHeader from "./ChatHeader.vue";
 import MessageList from "./MessageList.vue";
 
+type SendPayload = File[];
+
 defineProps<{
   messages: Message[];
   inputText: string;
   isTyping: boolean;
+  availableModels: string[];
+  selectedModel: string;
 }>();
 
 const emit = defineEmits<{
   "update:inputText": [value: string];
-  send: [];
+  "update:selectedModel": [value: string];
+  send: [files: SendPayload];
   newChat: [];
 }>();
 </script>
@@ -52,7 +57,12 @@ const emit = defineEmits<{
 
         <!-- Content -->
         <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-          <ChatHeader @new-chat="emit('newChat')" />
+          <ChatHeader
+            :available-models="availableModels"
+            :selected-model="selectedModel"
+            @update:selected-model="emit('update:selectedModel', $event)"
+            @new-chat="emit('newChat')"
+          />
 
           <!-- THE ONLY SCROLLABLE AREA -->
           <MessageList :messages="messages" :is-typing="isTyping" />
@@ -61,7 +71,7 @@ const emit = defineEmits<{
             :model-value="inputText"
             :is-typing="isTyping"
             @update:model-value="emit('update:inputText', $event)"
-            @send="emit('send')"
+            @send="emit('send', $event)"
           />
         </div>
       </section>

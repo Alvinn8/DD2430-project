@@ -37,7 +37,8 @@ class Settings(BaseSettings):
 
     # GCP
     GCP_PROJECT_ID: str = ""
-    GCP_LOCATION: str = "europe-west1"
+    # Publisher Gemini models are available through the global endpoint.
+    GCP_LOCATION: str = "global"
     DEFAULT_MODEL: str = "gemini-2.5-flash"
 
     class Config:
