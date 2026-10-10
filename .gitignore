@@ -219,5 +219,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+service-account.json
+
 # Local data storage for development and testing
 data/
