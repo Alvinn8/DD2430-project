@@ -1,0 +1,15 @@
+[MASTER]
+ignore=CVS
+
+[MESSAGES CONTROL]
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    wrong-import-order,
+    wrong-import-position,
+    redefined-outer-name,
+    raise-missing-from
+
+[FORMAT]
+max-line-length=120
