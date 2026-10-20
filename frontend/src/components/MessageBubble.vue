@@ -18,6 +18,12 @@ const selectedAttachment = ref<{
   url: string;
 } | null>(null);
 const selectedText = ref<string | null>(null);
+const showTools = ref(false);
+
+// Images produced by tools, such as plots, shown in the bubble
+const toolImages = computed(() =>
+  (props.message.tools ?? []).flatMap((tool) => tool.images ?? []),
+);
 
 const closeAttachment = () => {
   selectedAttachment.value = null;
@@ -111,8 +117,45 @@ const parsedContent = computed(() => {
           : 'bg-white/[0.42] backdrop-blur-[35px] rounded-[20px] rounded-bl-[6px] text-[#293246] ring-white/60 shadow-[0_8px_20px_rgba(80,100,140,0.06)]',
       ]"
     >
+      <div v-if="message.tools?.length" class="mb-2 text-xs text-[#8791A5]">
+        <button
+          type="button"
+          class="cursor-pointer hover:text-[#43516B]"
+          @click="showTools = !showTools"
+        >
+          🔧 {{ message.tools.length }}
+          {{ message.tools.length === 1 ? "tool" : "tools" }} used
+          {{ showTools ? "▾" : "▸" }}
+        </button>
+        <div v-if="showTools" class="mt-2 flex flex-col gap-2">
+          <div
+            v-for="tool in message.tools"
+            :key="tool.id"
+            class="rounded-lg bg-white/40 p-2 ring-1 ring-white/60"
+          >
+            <div class="font-medium text-[#43516B]">{{ tool.name }}</div>
+            <pre
+              v-if="Object.keys(tool.args).length"
+              class="mt-1 whitespace-pre-wrap break-words"
+            >{{ JSON.stringify(tool.args, null, 2) }}</pre>
+            <pre class="mt-1 whitespace-pre-wrap break-words">{{ tool.result ?? "Running…" }}</pre>
+          </div>
+        </div>
+      </div>
+
       <!-- 3. Replace {{ message.text }} with v-html -->
-      <div class="markdown-body" v-html="parsedContent"></div>
+      <div v-if="message.text" class="markdown-body" v-html="parsedContent"></div>
+
+      <div v-if="toolImages.length" class="mt-3 flex flex-wrap gap-2">
+        <img
+          v-for="(image, index) in toolImages"
+          :key="index"
+          :src="image"
+          alt="Image from tool"
+          class="max-h-64 cursor-pointer rounded-xl bg-white shadow-sm ring-1 ring-white/70"
+          @click="openAttachment({ name: 'Tool image', type: 'image/png', previewUrl: image })"
+        />
+      </div>
       <div v-if="message.attachments" class="mt-3 flex flex-wrap gap-2">
         <template
           v-for="attachment in message.attachments"

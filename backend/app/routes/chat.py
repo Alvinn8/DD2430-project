@@ -94,7 +94,7 @@ async def stream_chat(request: Request):
                 model=model,
                 images=images,
             ),
-            media_type="text/plain",
+            media_type="application/x-ndjson",
         )
     except HTTPException:
         raise
