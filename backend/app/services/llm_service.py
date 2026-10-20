@@ -7,26 +7,15 @@ import google.genai
 from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
 from langchain.messages import HumanMessage, AIMessage, SystemMessage, AnyMessage
-from langchain.tools import tool
 from app.config import settings
 from app.models import ImageInput
+from app.services.llm_tools import TOOLS, SessionContext
 
 basepath = path.dirname(__file__)
 with open(
     path.join(basepath, "..", "..", "prompts", "main.md"), "r", encoding="utf-8"
 ) as f:
     SYSTEM_PROMPT = f.read()
-
-
-@tool(
-    "example_tool",
-    description="Example tool function that reverses the input text.",
-)
-def example_tool(input_text: str) -> str:
-    return input_text[::-1]
-
-
-TOOLS = [example_tool]
 
 
 class LLMService:
@@ -45,7 +34,7 @@ class LLMService:
     def get_session(self, session_id: str) -> "LLMSession":
         """Return the session with the given id, creating it if it does not exist."""
         if session_id not in self._sessions:
-            self._sessions[session_id] = LLMSession(self)
+            self._sessions[session_id] = LLMSession(self, session_id)
         return self._sessions[session_id]
 
     def get_agent(self, model: str):
@@ -58,7 +47,9 @@ class LLMService:
                 project=settings.GCP_PROJECT_ID,
                 location=settings.GCP_LOCATION,
             )
-            self._agents[model] = create_agent(model=chat_model, tools=TOOLS)
+            self._agents[model] = create_agent(
+                model=chat_model, tools=TOOLS, context_schema=SessionContext
+            )
         return self._agents[model]
 
     async def list_models(self) -> list[str]:
@@ -95,8 +86,10 @@ class LLMService:
 
 
 class LLMSession:
-    def __init__(self, service: LLMService):
+    def __init__(self, service: LLMService, session_id: str):
         self._service = service
+        # State that tools can read and update, such as the current DSC file
+        self.context = SessionContext(session_id=session_id)
         self.messages: list[AnyMessage] = [SystemMessage(content=SYSTEM_PROMPT)]
         self._lock = asyncio.Lock()
 
@@ -127,7 +120,9 @@ class LLMSession:
 
             # "messages" streams model tokens, "values" gives the full state after each step
             async for mode, data in agent.astream(
-                {"messages": messages}, stream_mode=["messages", "values"]
+                {"messages": messages},
+                context=self.context,
+                stream_mode=["messages", "values"],
             ):
                 if mode == "messages":
                     chunk, _metadata = data
