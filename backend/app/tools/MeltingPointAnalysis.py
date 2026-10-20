@@ -177,13 +177,15 @@ def plot_dsc_data(
     plt.show()
 
 
-# pylint: disable=too-many-locals
-def analyze_dsc_data(data, smoothing_window=11):
+def find_melting_point(data, smoothing_window=11):
     """
-    Analyze DSC data to find the melting point and plot the results.
+    Find the melting point of DSC data as the intersection of the baseline fit
+    over the plateau region and the line fit over the rapid decline region.
     Arguments:
     - data: DataFrame containing 'Temperature' and 'HeatFlow' columns.
     - smoothing_window: Window length for Savitzky-Golay filter (must be odd).
+    Returns:
+    - dict with the melting point, the regions and the fitted lines.
     """
     start_plateau_index, end_of_plateau_index, start_decline_index, valley_min_idx = (
         find_break_points(data, smoothing_window)
@@ -205,6 +207,29 @@ def analyze_dsc_data(data, smoothing_window=11):
     x_int, y_int = find_intersection(
         slope, intercept, rapid_decline_slope, rapid_decline_intercept
     )
+
+    return {
+        "melting_point": (x_int, y_int),
+        "plateau_region": (start_plateau_index, end_of_plateau_index),
+        "decline_region": (start_decline_index, valley_min_idx),
+        "baseline_fit": (slope, intercept),
+        "decline_fit": (rapid_decline_slope, rapid_decline_intercept),
+    }
+
+
+def analyze_dsc_data(data, smoothing_window=11):
+    """
+    Analyze DSC data to find the melting point and plot the results.
+    Arguments:
+    - data: DataFrame containing 'Temperature' and 'HeatFlow' columns.
+    - smoothing_window: Window length for Savitzky-Golay filter (must be odd).
+    """
+    result = find_melting_point(data, smoothing_window)
+    x_int, y_int = result["melting_point"]
+    start_plateau_index, end_of_plateau_index = result["plateau_region"]
+    start_decline_index, valley_min_idx = result["decline_region"]
+    slope, intercept = result["baseline_fit"]
+    rapid_decline_slope, rapid_decline_intercept = result["decline_fit"]
 
     baseline_x = data.loc[start_plateau_index:valley_min_idx, "Temperature"].copy()
     baseline_y = slope * baseline_x + intercept

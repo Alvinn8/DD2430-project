@@ -1,6 +1,7 @@
 import base64
 import io
 from dataclasses import dataclass, field
+import numpy as np
 import pandas as pd
 from langchain.tools import tool, ToolRuntime
 from matplotlib.figure import Figure
@@ -8,6 +9,7 @@ from app.tools.DSCReader import (
     read_standardized_dsc_file,
     read_standardized_dsc_metadata,
 )
+from app.tools.MeltingPointAnalysis import find_melting_point
 
 
 @dataclass
@@ -93,4 +95,115 @@ def plot_dsc(runtime: ToolRuntime[SessionContext]) -> str | list[dict]:
     ]
 
 
-TOOLS = [dsc_file_status, select_dsc_file, plot_dsc]
+def extreme_value_in_range(
+    runtime: ToolRuntime[SessionContext], start_t: float, end_t: float, find_max: bool
+) -> str:
+    file_path = runtime.context.current_dsc_file
+    if file_path is None:
+        return "No DSC file is currently selected."
+
+    try:
+        df = read_standardized_dsc_file(file_path)
+    except (OSError, pd.errors.ParserError) as exc:
+        return f"Could not read DSC file '{file_path}': {exc}"
+
+    # Filter the DataFrame to the specified temperature range
+    filtered_df = df[(df["temperature_C"] >= start_t) & (df["temperature_C"] <= end_t)]
+
+    if filtered_df.empty:
+        return f"No data points found in the range [{start_t}, {end_t}] °C."
+
+    # Find the extreme heat flow value and its corresponding temperature
+    if find_max:
+        extreme_row = filtered_df.loc[filtered_df["heat_flow_mW"].idxmax()]
+        extreme_type = "Maximum"
+    else:
+        extreme_row = filtered_df.loc[filtered_df["heat_flow_mW"].idxmin()]
+        extreme_type = "Minimum"
+
+    extreme_temp = extreme_row["temperature_C"]
+    extreme_heat_flow = extreme_row["heat_flow_mW"]
+
+    return f"{extreme_type} heat flow in the range [{start_t}, {end_t}] °C is {extreme_heat_flow:.4f} mW at {extreme_temp:.2f} °C."
+
+
+@tool(
+    "max_value_in_range",
+    description=(
+        "Get the maximum value in the range [start_t, end_t]. The interval is a range in temperature and the return value is a tuple of (t, y) where t is the temperature of the maximum and y is the maximum heat flow value itself."
+    ),
+)
+def max_value_in_range(
+    runtime: ToolRuntime[SessionContext], start_t: float, end_t: float
+) -> str:
+    return extreme_value_in_range(runtime, start_t, end_t, find_max=True)
+
+
+@tool(
+    "min_value_in_range",
+    description=("Same as max_value_in_range but returns the minimum value instead."),
+)
+def min_value_in_range(
+    runtime: ToolRuntime[SessionContext], start_t: float, end_t: float
+) -> str:
+    return extreme_value_in_range(runtime, start_t, end_t, find_max=False)
+
+
+@tool(
+    "melting_point_analysis",
+    description=(
+        "Perform a melting point analysis on the currently selected DSC file. "
+        "The melting point is found as the intersection of a baseline fitted to "
+        "the plateau before the melting peak and a line fitted to the rapid "
+        "decline into the peak. Returns the melting point temperature and heat "
+        "flow, together with the temperature ranges used for the fits."
+    ),
+)
+def melting_point_analysis(
+    runtime: ToolRuntime[SessionContext], smoothing_window: int = 11
+) -> str:
+    file_path = runtime.context.current_dsc_file
+    if file_path is None:
+        return "No DSC file is currently selected."
+
+    try:
+        df = read_standardized_dsc_file(file_path)
+    except (OSError, pd.errors.ParserError) as exc:
+        return f"Could not read DSC file '{file_path}': {exc}"
+
+    # The analysis expects sorted 'Temperature' and 'HeatFlow' columns without gaps
+    data = (
+        df.rename(columns={"temperature_C": "Temperature", "heat_flow_mW": "HeatFlow"})
+        .dropna(subset=["Temperature", "HeatFlow"])
+        .sort_values("Temperature")
+        .reset_index(drop=True)
+    )
+
+    try:
+        result = find_melting_point(data, smoothing_window)
+    except (ValueError, TypeError, IndexError, np.linalg.LinAlgError) as exc:
+        return f"Melting point analysis failed for '{file_path}': {exc}"
+
+    melting_t, melting_heat_flow = result["melting_point"]
+    plateau_start, plateau_end = result["plateau_region"]
+    decline_start, decline_end = result["decline_region"]
+    temperature = data["Temperature"]
+
+    return (
+        f"Melting point of '{file_path}': {melting_t:.2f} °C "
+        f"(heat flow {melting_heat_flow:.4f} mW). "
+        f"Baseline fitted over {temperature[plateau_start]:.2f} to "
+        f"{temperature[plateau_end]:.2f} °C, slope {result['baseline_fit'][0]:.4f} mW/°C. "
+        f"Decline fitted over {temperature[decline_start]:.2f} to "
+        f"{temperature[decline_end]:.2f} °C, slope {result['decline_fit'][0]:.4f} mW/°C."
+    )
+
+
+TOOLS = [
+    dsc_file_status,
+    select_dsc_file,
+    plot_dsc,
+    max_value_in_range,
+    min_value_in_range,
+    melting_point_analysis,
+]
