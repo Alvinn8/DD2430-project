@@ -95,6 +95,35 @@ def plot_dsc(runtime: ToolRuntime[SessionContext]) -> str | list[dict]:
     ]
 
 
+@tool(
+    "get_heat_flow_at_temperature",
+    description=(
+        "Get the heat flow value at a specific temperature from the currently selected DSC file."
+    ),
+)
+def get_heat_flow_at_temperature(
+    runtime: ToolRuntime[SessionContext], temperature: float
+) -> str:
+    file_path = runtime.context.current_dsc_file
+    if file_path is None:
+        return "No DSC file is currently selected."
+
+    try:
+        df = read_standardized_dsc_file(file_path)
+    except (OSError, pd.errors.ParserError) as exc:
+        return f"Could not read DSC file '{file_path}': {exc}"
+
+    # Find the closest temperature in the DataFrame
+    closest_idx = (df["temperature_C"] - temperature).abs().idxmin()
+    closest_temp = df.loc[closest_idx, "temperature_C"]
+    heat_flow = df.loc[closest_idx, "heat_flow_mW"]
+
+    return (
+        f"At {closest_temp:.2f} °C, the heat flow is {heat_flow:.4f} mW "
+        f"in the DSC file '{file_path}'."
+    )
+
+
 def extreme_value_in_range(
     runtime: ToolRuntime[SessionContext], start_t: float, end_t: float, find_max: bool
 ) -> str:
@@ -203,6 +232,7 @@ TOOLS = [
     dsc_file_status,
     select_dsc_file,
     plot_dsc,
+    get_heat_flow_at_temperature,
     max_value_in_range,
     min_value_in_range,
     melting_point_analysis,
