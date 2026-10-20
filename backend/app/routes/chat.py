@@ -43,6 +43,7 @@ async def stream_chat(request: Request):
 
     if content_type.startswith("multipart/form-data"):
         form = await request.form()
+        session_id = str(form.get("session_id", ""))
         prompt = str(form.get("prompt", ""))
         files = [
             form_file
@@ -56,8 +57,12 @@ async def stream_chat(request: Request):
             payload = ChatRequest.model_validate(await request.json())
         except (json.JSONDecodeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail="Invalid chat request.") from exc
+        session_id = payload.session_id
         prompt = payload.prompt
         model = payload.model
+
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Session id is required.")
 
     if not prompt.strip() and not files:
         raise HTTPException(status_code=400, detail="Prompt cannot be empty.")
@@ -84,7 +89,7 @@ async def stream_chat(request: Request):
                 )
 
         return StreamingResponse(
-            llm_service.stream_chat_response(
+            llm_service.get_session(session_id).stream_chat_response(
                 prompt=prompt or "Please analyze the attached file.",
                 model=model,
                 images=images,

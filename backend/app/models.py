@@ -120,6 +120,7 @@ class ImageInput(BaseModel):
 
 
 class ChatRequest(BaseModel):
+    session_id: str = Field(..., description="Id of the chat session")
     prompt: str = Field(..., description="User prompt message")
     model: Optional[str] = Field(
         default="gemini-2.5-flash", description="Target Gemini model"

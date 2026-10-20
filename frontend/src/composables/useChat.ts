@@ -3,12 +3,18 @@ import { onMounted, ref } from "vue";
 import { DEFAULT_MODEL } from "../config";
 import type { Message } from "../types/chat";
 
+function randomSessionId() {
+  return Math.random().toString(36).substring(2, 15);
+}
+
 export function useChat() {
   const inputText = ref("");
   const isTyping = ref(false);
   const messages = ref<Message[]>([]);
   const availableModels = ref<string[]>([DEFAULT_MODEL]);
   const selectedModel = ref(DEFAULT_MODEL);
+  // Generate random session ID
+  const sessionId = ref(randomSessionId());
 
   const loadModels = async () => {
     try {
@@ -62,6 +68,7 @@ export function useChat() {
 
     try {
       const body = new FormData();
+      body.append("session_id", sessionId.value);
       body.append("prompt", text);
       body.append("model", selectedModel.value);
       for (const file of files) {
@@ -134,6 +141,7 @@ export function useChat() {
 
   const clearChat = () => {
     messages.value = [];
+    sessionId.value = randomSessionId();
   };
 
   onMounted(loadModels);
