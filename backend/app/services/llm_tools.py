@@ -153,13 +153,16 @@ def extreme_value_in_range(
     extreme_temp = extreme_row["temperature_C"]
     extreme_heat_flow = extreme_row["heat_flow_mW"]
 
-    return f"{extreme_type} heat flow in the range [{start_t}, {end_t}] °C is {extreme_heat_flow:.4f} mW at {extreme_temp:.2f} °C."
+    return f"""{extreme_type} heat flow in the range [{start_t}, {end_t}] 
+    °C is {extreme_heat_flow:.4f} mW at {extreme_temp:.2f} °C."""
 
 
 @tool(
     "max_value_in_range",
     description=(
-        "Get the maximum value in the range [start_t, end_t]. The interval is a range in temperature and the return value is a tuple of (t, y) where t is the temperature of the maximum and y is the maximum heat flow value itself."
+        """Get the maximum value in the range [start_t, end_t]. 
+        The interval is a range in temperature and the return value is a tuple of (t, y)
+        where t is the temperature of the maximum and y is the maximum heat flow value itself."""
     ),
 )
 def max_value_in_range(

@@ -194,10 +194,8 @@ def find_melting_point(data, smoothing_window=11):
     rapid_decline_df = data.loc[start_decline_index:valley_min_idx].copy()
     plateau_df = data.loc[start_plateau_index:end_of_plateau_index].copy()
 
-    clean_plateau = plateau_df.dropna(subset=["Temperature", "HeatFlow"])
-    slope, intercept = linear_fit(
-        clean_plateau["Temperature"], clean_plateau["HeatFlow"]
-    )
+    plateau_df = plateau_df.dropna(subset=["Temperature", "HeatFlow"])
+    slope, intercept = linear_fit(plateau_df["Temperature"], plateau_df["HeatFlow"])
 
     clean_rapid_decline = rapid_decline_df.dropna(subset=["Temperature", "HeatFlow"])
     rapid_decline_slope, rapid_decline_intercept = linear_fit(
@@ -228,15 +226,16 @@ def analyze_dsc_data(data, smoothing_window=11):
     x_int, y_int = result["melting_point"]
     start_plateau_index, end_of_plateau_index = result["plateau_region"]
     start_decline_index, valley_min_idx = result["decline_region"]
-    slope, intercept = result["baseline_fit"]
-    rapid_decline_slope, rapid_decline_intercept = result["decline_fit"]
 
+    slope, intercept = result["baseline_fit"]
     baseline_x = data.loc[start_plateau_index:valley_min_idx, "Temperature"].copy()
     baseline_y = slope * baseline_x + intercept
+
+    slope, intercept = result["decline_fit"]
     decline_x = data.loc[
         end_of_plateau_index - 10 : valley_min_idx, "Temperature"
     ].copy()
-    decline_y = rapid_decline_slope * decline_x + rapid_decline_intercept
+    decline_y = slope * decline_x + intercept
 
     print(f"Detected Melting Point: {x_int:.2f} °C, Heat Flow: {y_int:.2f} mW")
 
