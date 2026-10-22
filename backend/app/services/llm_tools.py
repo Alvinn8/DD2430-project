@@ -153,7 +153,7 @@ def extreme_value_in_range(
     extreme_temp = extreme_row["temperature_C"]
     extreme_heat_flow = extreme_row["heat_flow_mW"]
 
-    return f"""{extreme_type} heat flow in the range [{start_t}, {end_t}] 
+    return f"""{extreme_type} heat flow in the range [{start_t}, {end_t}]
     °C is {extreme_heat_flow:.4f} mW at {extreme_temp:.2f} °C."""
 
 
