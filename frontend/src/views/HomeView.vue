@@ -8,6 +8,7 @@ const {
   messages,
   availableModels,
   selectedModel,
+  sessionId,
   sendMessage,
   clearChat,
 } = useChat();
@@ -20,6 +21,7 @@ const {
     :is-typing="isTyping"
     :available-models="availableModels"
     :selected-model="selectedModel"
+    :session-id="sessionId"
     @update:input-text="inputText = $event"
     @update:selected-model="selectedModel = $event"
     @send="sendMessage"

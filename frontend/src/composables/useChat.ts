@@ -176,6 +176,7 @@ export function useChat() {
     messages,
     availableModels,
     selectedModel,
+    sessionId,
     sendMessage,
     clearChat,
   };

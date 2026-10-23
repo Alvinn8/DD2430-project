@@ -33,6 +33,16 @@ async def list_models() -> dict[str, list[str]]:
         ) from exc
 
 
+@router.delete("/{session_id}/files")
+async def remove_session_file(session_id: str, filename: str) -> dict[str, str]:
+    """Remove an uploaded file from a chat session's analysis context."""
+    if not filename.strip():
+        raise HTTPException(status_code=400, detail="Filename is required.")
+
+    llm_service.get_session(session_id).remove_uploaded_file(filename)
+    return {"status": "removed"}
+
+
 @router.post("/stream")
 async def stream_chat(request: Request):
     """
@@ -71,6 +81,7 @@ async def stream_chat(request: Request):
         images = None
         if files:
             images = []
+            session = llm_service.get_session(session_id)
             for file in files:
                 if not file.content_type:
                     raise HTTPException(
@@ -84,9 +95,9 @@ async def stream_chat(request: Request):
                             "Use an image, PDF, CSV, JSON, or plain-text file."
                         ),
                     )
-                images.append(
-                    ImageInput(data=await file.read(), mime_type=file.content_type)
-                )
+                file_data = await file.read()
+                session.register_uploaded_file(file.filename or "uploaded-file", file_data)
+                images.append(ImageInput(data=file_data, mime_type=file.content_type))
 
         return StreamingResponse(
             llm_service.get_session(session_id).stream_chat_response(

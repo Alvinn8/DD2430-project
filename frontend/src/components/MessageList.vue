@@ -131,4 +131,45 @@ onMounted(scrollToBottom);
   opacity: 0;
   transform: translateY(5px);
 }
+
+.chat-scroll-area {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(142, 164, 207, 0.55) transparent;
+  scrollbar-gutter: stable;
+}
+
+.chat-scroll-area::-webkit-scrollbar {
+  width: 10px;
+}
+
+.chat-scroll-area::-webkit-scrollbar-track {
+  margin: 18px 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 10px rgba(130, 150, 190, 0.06);
+}
+
+.chat-scroll-area::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgba(186, 205, 244, 0.9),
+    rgba(130, 157, 209, 0.7)
+  );
+  background-clip: padding-box;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.42),
+    0 2px 8px rgba(87, 112, 167, 0.18);
+}
+
+.chat-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(170, 194, 239, 0.98),
+    rgba(111, 142, 201, 0.86)
+  );
+  background-clip: padding-box;
+}
 </style>

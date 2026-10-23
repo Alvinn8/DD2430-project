@@ -2,7 +2,9 @@
 import asyncio
 import base64
 import json
+import tempfile
 from os import path
+from pathlib import Path
 from typing import AsyncGenerator, List, Optional
 import google.genai
 from langchain.agents import create_agent
@@ -121,14 +123,53 @@ def _tool_result_event(message: ToolMessage) -> str:
 class LLMSession:
     def __init__(self, service: LLMService, session_id: str):
         self._service = service
+        self._upload_dir = Path(tempfile.mkdtemp(prefix="dd2430-session-"))
         # State that tools can read and update, such as the current DSC file
         self.context = SessionContext(session_id=session_id)
-        # TODO we need some way to input stuff
+        # Keep the built-in reference file available alongside session uploads.
         self.context.dsc_files_available = [
             "/Users/Alvin/Documents/KTH/DD2430/standardized_data/Griseofulvin/DSC/GRIS - N500-1000 x10.csv"
         ]
         self.messages: list[AnyMessage] = [SystemMessage(content=SYSTEM_PROMPT)]
         self._lock = asyncio.Lock()
+
+    def register_uploaded_file(self, filename: str, data: bytes) -> str:
+        """Persist an uploaded file and make it available to the analysis tools."""
+        safe_name = Path(filename).name or "uploaded-file"
+        destination = self._upload_dir / safe_name
+        suffix = 1
+        while destination.exists():
+            destination = (
+                self._upload_dir
+                / f"{Path(safe_name).stem}-{suffix}{Path(safe_name).suffix}"
+            )
+            suffix += 1
+
+        destination.write_bytes(data)
+        file_path = str(destination)
+        self.context.dsc_files_available.append(file_path)
+        self.context.current_dsc_file = file_path
+        return file_path
+
+    def remove_uploaded_file(self, filename: str) -> None:
+        """Remove an uploaded file from this session's analysis context."""
+        matching_paths = [
+            Path(file_path)
+            for file_path in self.context.dsc_files_available
+            if Path(file_path).parent == self._upload_dir
+            and Path(file_path).name == Path(filename).name
+        ]
+        for file_path in matching_paths:
+            file_path.unlink(missing_ok=True)
+
+        removed_paths = {str(file_path) for file_path in matching_paths}
+        self.context.dsc_files_available = [
+            file_path
+            for file_path in self.context.dsc_files_available
+            if file_path not in removed_paths
+        ]
+        if self.context.current_dsc_file in removed_paths:
+            self.context.current_dsc_file = None
 
     async def stream_chat_response(
         self,

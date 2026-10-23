@@ -52,7 +52,10 @@ const openAttachment = async (attachment: {
   selectedText.value = null;
   document.addEventListener("keydown", onKeydown);
 
-  if (!attachment.type.includes("pdf") && !attachment.type.startsWith("image/")) {
+  if (
+    !attachment.type.includes("pdf") &&
+    !attachment.type.startsWith("image/")
+  ) {
     selectedText.value = await fetch(url).then((response) => response.text());
   }
 };
@@ -110,14 +113,17 @@ const parsedContent = computed(() => {
     ]"
   >
     <div
-      class="px-5 py-3.5 shadow-sm ring-1 ring-inset"
+      class="message-bubble px-5 py-3.5 shadow-sm ring-1 ring-inset"
       :class="[
         message.sender === 'user'
-          ? 'bg-[#E7EEFF]/55 rounded-[20px] rounded-br-[6px] text-[#293246] ring-white/40 shadow-[0_8px_20px_rgba(80,100,140,0.08)]'
-          : 'bg-white/[0.42] backdrop-blur-[35px] rounded-[20px] rounded-bl-[6px] text-[#293246] ring-white/60 shadow-[0_8px_20px_rgba(80,100,140,0.06)]',
+          ? 'user-bubble bg-[#F34F3]/55 rounded-[20px] rounded-br-[6px] text-[#293246] ring-white/40 shadow-[0_8px_20px_rgba(80,100,140,0.08)]'
+          : 'bot-bubble bg-white/[0.42] backdrop-blur-[35px] rounded-[20px] rounded-bl-[6px] text-[#293246] ring-white/60 shadow-[0_8px_20px_rgba(80,100,140,0.06)]',
       ]"
     >
-      <div v-if="message.tools?.length" class="mb-2 text-xs text-[#8791A5]">
+      <div
+        v-if="message.tools?.length"
+        class="tool-summary mb-2 text-xs text-[#8791A5]"
+      >
         <button
           type="button"
           class="cursor-pointer hover:text-[#43516B]"
@@ -131,20 +137,27 @@ const parsedContent = computed(() => {
           <div
             v-for="tool in message.tools"
             :key="tool.id"
-            class="rounded-lg bg-white/40 p-2 ring-1 ring-white/60"
+            class="tool-card rounded-lg bg-white/40 p-2 ring-1 ring-white/60"
           >
             <div class="font-medium text-[#43516B]">{{ tool.name }}</div>
             <pre
               v-if="Object.keys(tool.args).length"
               class="mt-1 whitespace-pre-wrap break-words"
-            >{{ JSON.stringify(tool.args, null, 2) }}</pre>
-            <pre class="mt-1 whitespace-pre-wrap break-words">{{ tool.result ?? "Running…" }}</pre>
+              >{{ JSON.stringify(tool.args, null, 2) }}</pre
+            >
+            <pre class="mt-1 whitespace-pre-wrap break-words">{{
+              tool.result ?? "Running…"
+            }}</pre>
           </div>
         </div>
       </div>
 
       <!-- 3. Replace {{ message.text }} with v-html -->
-      <div v-if="message.text" class="markdown-body" v-html="parsedContent"></div>
+      <div
+        v-if="message.text"
+        class="markdown-body"
+        v-html="parsedContent"
+      ></div>
 
       <div v-if="toolImages.length" class="mt-3 flex flex-wrap gap-2">
         <img
@@ -153,7 +166,13 @@ const parsedContent = computed(() => {
           :src="image"
           alt="Image from tool"
           class="max-h-64 cursor-pointer rounded-xl bg-white shadow-sm ring-1 ring-white/70"
-          @click="openAttachment({ name: 'Tool image', type: 'image/png', previewUrl: image })"
+          @click="
+            openAttachment({
+              name: 'Tool image',
+              type: 'image/png',
+              previewUrl: image,
+            })
+          "
         />
       </div>
       <div v-if="message.attachments" class="mt-3 flex flex-wrap gap-2">
@@ -170,7 +189,7 @@ const parsedContent = computed(() => {
           />
           <span
             v-else
-            class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl bg-white/40 text-lg ring-1 ring-white/70 transition-transform hover:scale-[1.05]"
+            class="file-attachment flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl bg-white/40 text-lg ring-1 ring-white/70 transition-transform hover:scale-[1.05]"
             aria-label="Attached file"
             :title="`View ${attachment.name}`"
             @click="openAttachment(attachment)"
@@ -225,10 +244,15 @@ const parsedContent = computed(() => {
           v-else
           class="flex h-[min(82vh,720px)] w-[min(92vw,900px)] cursor-default flex-col overflow-hidden rounded-2xl bg-[#F8FAFF] shadow-[0_20px_70px_rgba(0,0,0,0.28)]"
         >
-          <div class="border-b border-[#DCE3F0] px-5 py-3 text-sm font-medium text-[#43516B]">
+          <div
+            class="border-b border-[#DCE3F0] px-5 py-3 text-sm font-medium text-[#43516B]"
+          >
             {{ selectedAttachment.name }}
           </div>
-          <pre class="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-5 text-left text-xs leading-6 text-[#43516B]">{{ selectedText ?? "Loading preview..." }}</pre>
+          <pre
+            class="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-5 text-left text-xs leading-6 text-[#43516B]"
+            >{{ selectedText ?? "Loading preview..." }}</pre
+          >
         </div>
       </div>
     </Transition>
@@ -236,6 +260,58 @@ const parsedContent = computed(() => {
 </template>
 
 <style scoped>
+:global(.dark) .message-bubble {
+  color: #62718d;
+}
+
+:global(.dark) .user-bubble {
+  background: #263858 !important;
+  border-color: rgba(142, 169, 218, 0.2) !important;
+  color: #485977 !important;
+  box-shadow:
+    0 8px 22px rgba(3, 10, 24, 0.38),
+    inset 0 1px 0 rgba(190, 211, 248, 0.07) !important;
+}
+
+:global(.dark) .bot-bubble {
+  background: rgba(35, 52, 82, 0.78);
+  box-shadow:
+    0 10px 28px rgba(3, 10, 24, 0.24),
+    inset 0 1px 0 rgba(196, 214, 251, 0.1);
+}
+
+:global(.dark) .message-bubble .markdown-body {
+  color: #dce7fb;
+}
+
+:global(.dark) .tool-summary {
+  color: #aabddb;
+}
+
+:global(.dark) .tool-summary button:hover {
+  color: #e5edff;
+}
+
+:global(.dark) .tool-card {
+  background: rgba(13, 25, 47, 0.62);
+  color: #b8c9e7;
+  box-shadow: inset 0 1px 0 rgba(196, 214, 251, 0.08);
+}
+
+:global(.dark) .tool-card .font-medium {
+  color: #dce7fb;
+}
+
+:global(.dark) .file-attachment {
+  background: rgba(68, 91, 133, 0.62);
+  color: #d8e5ff;
+  border-color: rgba(192, 212, 250, 0.3);
+}
+
+:global(.dark) .message-bubble + span {
+  color: #8296bb;
+}
+
 /* 
   4. Styling the injected HTML 
   Because v-html content is injected dynamically, standard scoped CSS won't affect it.
@@ -269,6 +345,12 @@ const parsedContent = computed(() => {
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
   border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+:global(.dark) .markdown-body :deep(code:not(.language-math)),
+:global(.dark) .markdown-body :deep(pre) {
+  background: rgba(10, 22, 43, 0.62);
+  color: #d5e2fa;
 }
 
 /* Ensure display math scrolls horizontally if it overflows on mobile */
