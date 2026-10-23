@@ -1,3 +1,13 @@
+export interface ToolUse {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+  // Undefined while the tool is still running
+  result?: string;
+  // Images returned by the tool, as data URLs
+  images?: string[];
+}
+
 export interface Message {
   id: number;
   text: string;
@@ -9,4 +19,5 @@ export interface Message {
     previewUrl?: string;
     contentUrl?: string;
   }>;
+  tools?: ToolUse[];
 }

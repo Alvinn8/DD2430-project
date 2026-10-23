@@ -177,13 +177,15 @@ def plot_dsc_data(
     plt.show()
 
 
-# pylint: disable=too-many-locals
-def analyze_dsc_data(data, smoothing_window=11):
+def find_melting_point(data, smoothing_window=11):
     """
-    Analyze DSC data to find the melting point and plot the results.
+    Find the melting point of DSC data as the intersection of the baseline fit
+    over the plateau region and the line fit over the rapid decline region.
     Arguments:
     - data: DataFrame containing 'Temperature' and 'HeatFlow' columns.
     - smoothing_window: Window length for Savitzky-Golay filter (must be odd).
+    Returns:
+    - dict with the melting point, the regions and the fitted lines.
     """
     start_plateau_index, end_of_plateau_index, start_decline_index, valley_min_idx = (
         find_break_points(data, smoothing_window)
@@ -192,10 +194,8 @@ def analyze_dsc_data(data, smoothing_window=11):
     rapid_decline_df = data.loc[start_decline_index:valley_min_idx].copy()
     plateau_df = data.loc[start_plateau_index:end_of_plateau_index].copy()
 
-    clean_plateau = plateau_df.dropna(subset=["Temperature", "HeatFlow"])
-    slope, intercept = linear_fit(
-        clean_plateau["Temperature"], clean_plateau["HeatFlow"]
-    )
+    plateau_df = plateau_df.dropna(subset=["Temperature", "HeatFlow"])
+    slope, intercept = linear_fit(plateau_df["Temperature"], plateau_df["HeatFlow"])
 
     clean_rapid_decline = rapid_decline_df.dropna(subset=["Temperature", "HeatFlow"])
     rapid_decline_slope, rapid_decline_intercept = linear_fit(
@@ -206,12 +206,36 @@ def analyze_dsc_data(data, smoothing_window=11):
         slope, intercept, rapid_decline_slope, rapid_decline_intercept
     )
 
+    return {
+        "melting_point": (x_int, y_int),
+        "plateau_region": (start_plateau_index, end_of_plateau_index),
+        "decline_region": (start_decline_index, valley_min_idx),
+        "baseline_fit": (slope, intercept),
+        "decline_fit": (rapid_decline_slope, rapid_decline_intercept),
+    }
+
+
+def analyze_dsc_data(data, smoothing_window=11):
+    """
+    Analyze DSC data to find the melting point and plot the results.
+    Arguments:
+    - data: DataFrame containing 'Temperature' and 'HeatFlow' columns.
+    - smoothing_window: Window length for Savitzky-Golay filter (must be odd).
+    """
+    result = find_melting_point(data, smoothing_window)
+    x_int, y_int = result["melting_point"]
+    start_plateau_index, end_of_plateau_index = result["plateau_region"]
+    start_decline_index, valley_min_idx = result["decline_region"]
+
+    slope, intercept = result["baseline_fit"]
     baseline_x = data.loc[start_plateau_index:valley_min_idx, "Temperature"].copy()
     baseline_y = slope * baseline_x + intercept
+
+    slope, intercept = result["decline_fit"]
     decline_x = data.loc[
         end_of_plateau_index - 10 : valley_min_idx, "Temperature"
     ].copy()
-    decline_y = rapid_decline_slope * decline_x + rapid_decline_intercept
+    decline_y = slope * decline_x + intercept
 
     print(f"Detected Melting Point: {x_int:.2f} °C, Heat Flow: {y_int:.2f} mW")
 

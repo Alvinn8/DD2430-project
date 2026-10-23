@@ -1,7 +1,7 @@
 """Run DSC-based melting point analysis from a local CSV file."""
 
-from tools.DSCReader import read_dsc_file
-from tools.MeltingPointAnalysis import analyze_dsc_data
+from backend.app.tools.DSCReader import read_dsc_file
+from backend.app.tools.MeltingPointAnalysis import analyze_dsc_data
 
 
 def main(**kwargs):

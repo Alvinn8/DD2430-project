@@ -21,8 +21,12 @@ from matplotlib.figure import Figure
 from matplotlib.widgets import SpanSelector
 
 # 3. Local Imports
-from tools.DSCReader import read_dsc_file
-from tools.MeltingPointAnalysis import find_break_points, find_intersection, linear_fit
+from backend.app.tools.DSCReader import read_dsc_file
+from backend.app.tools.MeltingPointAnalysis import (
+    find_break_points,
+    find_intersection,
+    linear_fit,
+)
 
 
 @dataclass
