@@ -231,7 +231,7 @@ const onKeydown = (event: KeyboardEvent) => {
             type="button"
             aria-label="Attach a file"
             :disabled="isTyping"
-            class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#8795B0] transition-colors hover:bg-white/50 hover:text-[#6378A5] disabled:cursor-not-allowed disabled:opacity-50"
+            class="attach-button flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#8795B0] transition-colors hover:bg-white/50 hover:text-[#6378A5] disabled:cursor-not-allowed disabled:opacity-50"
             @click="openFilePicker"
           >
             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none">
@@ -263,7 +263,7 @@ const onKeydown = (event: KeyboardEvent) => {
           type="button"
           aria-label="Send message"
           :disabled="!canSend"
-          class="group flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-white/60 transition-all duration-300"
+          class="send-button group flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-white/60 transition-all duration-300"
           :class="
             canSend
               ? [
