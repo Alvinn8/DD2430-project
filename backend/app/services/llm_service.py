@@ -126,10 +126,6 @@ class LLMSession:
         self._upload_dir = Path(tempfile.mkdtemp(prefix="dd2430-session-"))
         # State that tools can read and update, such as the current DSC file
         self.context = SessionContext(session_id=session_id)
-        # Keep the built-in reference file available alongside session uploads.
-        self.context.dsc_files_available = [
-            "/Users/Alvin/Documents/KTH/DD2430/standardized_data/Griseofulvin/DSC/GRIS - N500-1000 x10.csv"
-        ]
         self.messages: list[AnyMessage] = [SystemMessage(content=SYSTEM_PROMPT)]
         self._lock = asyncio.Lock()
 
