@@ -1,7 +1,7 @@
 // src/composables/useChat.ts
-import { onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { DEFAULT_MODEL } from "../config";
-import type { Message } from "../types/chat";
+import type { ExothermicDirection, Message } from "../types/chat";
 
 type StreamEvent =
   | { type: "text"; text: string }
@@ -24,6 +24,11 @@ function randomSessionId() {
   return Math.random().toString(36).substring(2, 15);
 }
 
+function loadExothermicDirection(): ExothermicDirection {
+  const saved = localStorage.getItem("exothermicDirection");
+  return saved === "up" || saved === "down" ? saved : "unknown";
+}
+
 export function useChat() {
   const inputText = ref("");
   const isTyping = ref(false);
@@ -35,8 +40,15 @@ export function useChat() {
   });
   const availableModels = ref<string[]>([DEFAULT_MODEL]);
   const selectedModel = ref(DEFAULT_MODEL);
+  const exothermicDirection = ref<ExothermicDirection>(
+    loadExothermicDirection(),
+  );
   // Generate random session ID
   const sessionId = ref(randomSessionId());
+
+  watch(exothermicDirection, (direction) => {
+    localStorage.setItem("exothermicDirection", direction);
+  });
 
   const loadModels = async () => {
     try {
@@ -109,6 +121,7 @@ export function useChat() {
       body.append("session_id", sessionId.value);
       body.append("prompt", text);
       body.append("model", selectedModel.value);
+      body.append("exothermic_direction", exothermicDirection.value);
       for (const file of files) {
         body.append("file", file);
       }
@@ -201,6 +214,7 @@ export function useChat() {
     tokenUsage,
     availableModels,
     selectedModel,
+    exothermicDirection,
     sessionId,
     sendMessage,
     clearChat,

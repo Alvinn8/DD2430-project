@@ -8,6 +8,7 @@ import ChatHeader from "./ChatHeader.vue";
 import MessageList from "./MessageList.vue";
 import AnalysisSidebar from "./AnalysisSidebar.vue";
 import SettingsModal from "./SettingsModal.vue";
+import type { ExothermicDirection } from "../types/chat";
 
 type SendPayload = File[];
 
@@ -24,12 +25,14 @@ const props = defineProps<{
   isTyping: boolean;
   availableModels: string[];
   selectedModel: string;
+  exothermicDirection: ExothermicDirection;
   sessionId: string;
 }>();
 
 const emit = defineEmits<{
   "update:inputText": [value: string];
   "update:selectedModel": [value: string];
+  "update:exothermicDirection": [value: ExothermicDirection];
   send: [files: SendPayload];
   newChat: [];
 }>();
@@ -138,6 +141,8 @@ const clearChat = () => {
           :files="importedFiles"
           :is-typing="props.isTyping"
           :token-usage="props.tokenUsage"
+          :exothermic-direction="props.exothermicDirection"
+          @update:exothermic-direction="emit('update:exothermicDirection', $event)"
           @add-files="addImportedFiles"
           @remove-file="removeImportedFile"
           @open-settings="isSettingsOpen = true"

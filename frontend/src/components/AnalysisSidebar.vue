@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import type { ExothermicDirection } from "../types/chat";
 
 defineProps<{
   files: File[];
@@ -9,16 +10,25 @@ defineProps<{
     outputTokens: number;
     totalTokens: number;
   };
+  exothermicDirection: ExothermicDirection;
 }>();
 
 const emit = defineEmits<{
   addFiles: [files: File[]];
   removeFile: [index: number];
   openSettings: [];
+  "update:exothermicDirection": [value: ExothermicDirection];
 }>();
 
 const fileInput = ref<HTMLInputElement | null>(null);
 const formatTokenCount = (count: number) => new Intl.NumberFormat().format(count);
+
+const updateExothermicDirection = (event: Event) => {
+  const direction = (event.target as HTMLSelectElement).value;
+  if (direction === "unknown" || direction === "up" || direction === "down") {
+    emit("update:exothermicDirection", direction);
+  }
+};
 
 const openFilePicker = () => {
   fileInput.value?.click();
@@ -110,8 +120,24 @@ const selectFiles = (event: Event) => {
       </ul>
     </div>
 
+    <label class="mt-4 block">
+      <span class="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-[#9AA5B8]">
+        Exothermic direction
+      </span>
+      <select
+        :value="exothermicDirection"
+        class="w-full cursor-pointer rounded-xl border border-white/60 bg-white/40 px-2.5 py-2 text-[11px] text-[#596985] outline-none transition focus:border-blue-300"
+        aria-label="Exothermic direction in DSC graphs"
+        @change="updateExothermicDirection"
+      >
+        <option value="unknown">Not specified — ask me</option>
+        <option value="up">Up is exothermic</option>
+        <option value="down">Down is exothermic</option>
+      </select>
+    </label>
+
     <div
-      class="mt-5 rounded-2xl border border-white/50 bg-white/25 px-3 py-2.5"
+      class="mt-4 rounded-2xl border border-white/50 bg-white/25 px-3 py-2.5"
       role="status"
       aria-live="polite"
       aria-label="Token usage for this conversation"

@@ -1,6 +1,9 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Literal, Optional
 from datetime import datetime
+
+
+ExothermicDirection = Literal["unknown", "up", "down"]
 
 
 class DSCDataPoint(BaseModel):
@@ -124,6 +127,10 @@ class ChatRequest(BaseModel):
     prompt: str = Field(..., description="User prompt message")
     model: Optional[str] = Field(
         default="gemini-2.5-flash", description="Target Gemini model"
+    )
+    exothermic_direction: ExothermicDirection = Field(
+        default="unknown",
+        description="Direction in which exothermic heat flow is plotted",
     )
 
 

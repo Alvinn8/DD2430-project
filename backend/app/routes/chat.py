@@ -53,23 +53,33 @@ async def stream_chat(request: Request):
 
     if content_type.startswith("multipart/form-data"):
         form = await request.form()
-        session_id = str(form.get("session_id", ""))
-        prompt = str(form.get("prompt", ""))
         files = [
             form_file
             for form_file in form.getlist("file")
             if isinstance(form_file, UploadFile)
         ]
-        model_value = form.get("model")
-        model = str(model_value) if model_value else settings.DEFAULT_MODEL
+        try:
+            payload = ChatRequest.model_validate(
+                {
+                    "session_id": form.get("session_id", ""),
+                    "prompt": form.get("prompt", ""),
+                    "model": form.get("model") or settings.DEFAULT_MODEL,
+                    "exothermic_direction": form.get(
+                        "exothermic_direction", "unknown"
+                    ),
+                }
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid chat request.") from exc
     else:
         try:
             payload = ChatRequest.model_validate(await request.json())
         except (json.JSONDecodeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail="Invalid chat request.") from exc
-        session_id = payload.session_id
-        prompt = payload.prompt
-        model = payload.model
+
+    session_id = payload.session_id
+    prompt = payload.prompt
+    model = payload.model
 
     if not session_id:
         raise HTTPException(status_code=400, detail="Session id is required.")
@@ -104,6 +114,7 @@ async def stream_chat(request: Request):
                 prompt=prompt or "Please analyze the attached file.",
                 model=model,
                 images=images,
+                exothermic_direction=payload.exothermic_direction,
             ),
             media_type="application/x-ndjson",
         )

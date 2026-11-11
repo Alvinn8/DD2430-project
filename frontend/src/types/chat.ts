@@ -8,6 +8,8 @@ export interface ToolUse {
   images?: string[];
 }
 
+export type ExothermicDirection = "unknown" | "up" | "down";
+
 export interface Message {
   id: number;
   text: string;
