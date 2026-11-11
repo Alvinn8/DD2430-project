@@ -127,6 +127,11 @@ class LLMSession:
         # State that tools can read and update, such as the current DSC file
         self.context = SessionContext(session_id=session_id)
         self.messages: list[AnyMessage] = [SystemMessage(content=SYSTEM_PROMPT)]
+        self.token_usage = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+        }
         self._lock = asyncio.Lock()
 
     def register_uploaded_file(self, filename: str, data: bytes) -> str:
@@ -220,6 +225,16 @@ class LLMSession:
                                     name=call["name"],
                                     args=call["args"],
                                 )
+                            usage = message.usage_metadata
+                            if usage:
+                                input_tokens = usage.get("input_tokens", 0)
+                                output_tokens = usage.get("output_tokens", 0)
+                                self.token_usage["input_tokens"] += input_tokens
+                                self.token_usage["output_tokens"] += output_tokens
+                                self.token_usage["total_tokens"] += usage.get(
+                                    "total_tokens", input_tokens + output_tokens
+                                )
+                                yield _event("usage", **self.token_usage)
                         elif isinstance(message, ToolMessage):
                             yield _tool_result_event(message)
                     seen = len(messages)

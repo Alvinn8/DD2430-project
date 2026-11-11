@@ -4,6 +4,11 @@ import { ref } from "vue";
 defineProps<{
   files: File[];
   isTyping: boolean;
+  tokenUsage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  };
 }>();
 
 const emit = defineEmits<{
@@ -13,6 +18,7 @@ const emit = defineEmits<{
 }>();
 
 const fileInput = ref<HTMLInputElement | null>(null);
+const formatTokenCount = (count: number) => new Intl.NumberFormat().format(count);
 
 const openFilePicker = () => {
   fileInput.value?.click();
@@ -104,9 +110,29 @@ const selectFiles = (event: Event) => {
       </ul>
     </div>
 
+    <div
+      class="mt-5 rounded-2xl border border-white/50 bg-white/25 px-3 py-2.5"
+      role="status"
+      aria-live="polite"
+      aria-label="Token usage for this conversation"
+    >
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-[10px] font-medium uppercase tracking-[0.12em] text-[#9AA5B8]">
+          Session tokens
+        </p>
+        <p class="text-[12px] font-semibold tabular-nums text-[#6378A5]">
+          {{ formatTokenCount(tokenUsage.totalTokens) }}
+        </p>
+      </div>
+      <p class="mt-1 text-[10px] tabular-nums text-[#8C98AD]">
+        {{ formatTokenCount(tokenUsage.inputTokens) }} input ·
+        {{ formatTokenCount(tokenUsage.outputTokens) }} output
+      </p>
+    </div>
+
     <button
       type="button"
-      class="mt-5 flex w-full cursor-pointer items-center gap-2 rounded-2xl border border-white/50 bg-white/20 px-3 py-3 text-left text-[11px] text-[#7F8CA4] transition hover:bg-white/45"
+      class="mt-3 flex w-full cursor-pointer items-center gap-2 rounded-2xl border border-white/50 bg-white/20 px-3 py-3 text-left text-[11px] text-[#7F8CA4] transition hover:bg-white/45"
       @click="emit('openSettings')"
     >
       <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0" fill="none" aria-hidden="true">

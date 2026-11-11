@@ -6,7 +6,19 @@ import type { Message } from "../types/chat";
 type StreamEvent =
   | { type: "text"; text: string }
   | { type: "tool_call"; id: string; name: string; args: Record<string, unknown> }
-  | { type: "tool_result"; id: string; text: string; images: string[] };
+  | { type: "tool_result"; id: string; text: string; images: string[] }
+  | {
+      type: "usage";
+      input_tokens: number;
+      output_tokens: number;
+      total_tokens: number;
+    };
+
+type TokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+};
 
 function randomSessionId() {
   return Math.random().toString(36).substring(2, 15);
@@ -16,6 +28,11 @@ export function useChat() {
   const inputText = ref("");
   const isTyping = ref(false);
   const messages = ref<Message[]>([]);
+  const tokenUsage = ref<TokenUsage>({
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+  });
   const availableModels = ref<string[]>([DEFAULT_MODEL]);
   const selectedModel = ref(DEFAULT_MODEL);
   // Generate random session ID
@@ -152,6 +169,12 @@ export function useChat() {
         tool.result = event.text;
         tool.images = event.images;
       }
+    } else if (event.type === "usage") {
+      tokenUsage.value = {
+        inputTokens: event.input_tokens,
+        outputTokens: event.output_tokens,
+        totalTokens: event.total_tokens,
+      };
     }
   };
 
@@ -165,6 +188,7 @@ export function useChat() {
 
   const clearChat = () => {
     messages.value = [];
+    tokenUsage.value = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
     sessionId.value = randomSessionId();
   };
 
@@ -174,6 +198,7 @@ export function useChat() {
     inputText,
     isTyping,
     messages,
+    tokenUsage,
     availableModels,
     selectedModel,
     sessionId,

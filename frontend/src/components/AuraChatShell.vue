@@ -11,8 +11,15 @@ import SettingsModal from "./SettingsModal.vue";
 
 type SendPayload = File[];
 
+type TokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+};
+
 const props = defineProps<{
   messages: Message[];
+  tokenUsage: TokenUsage;
   inputText: string;
   isTyping: boolean;
   availableModels: string[];
@@ -130,6 +137,7 @@ const clearChat = () => {
         <AnalysisSidebar
           :files="importedFiles"
           :is-typing="props.isTyping"
+          :token-usage="props.tokenUsage"
           @add-files="addImportedFiles"
           @remove-file="removeImportedFile"
           @open-settings="isSettingsOpen = true"
