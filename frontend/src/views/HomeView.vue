@@ -6,6 +6,7 @@ const {
   inputText,
   isTyping,
   messages,
+  tokenUsage,
   availableModels,
   selectedModel,
   sessionId,
@@ -17,6 +18,7 @@ const {
 <template>
   <AuraChatShell
     :messages="messages"
+    :token-usage="tokenUsage"
     :input-text="inputText"
     :is-typing="isTyping"
     :available-models="availableModels"
