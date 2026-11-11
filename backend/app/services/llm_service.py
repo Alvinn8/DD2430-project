@@ -26,6 +26,10 @@ with open(
 ) as f:
     SYSTEM_PROMPT = f.read()
 
+SYSTEM_PROMPT += "\n\nAvailable tools:\n" + "\n".join(
+    f"- {tool.name}: {tool.description.strip()}" for tool in TOOLS
+)
+
 
 class LLMService:
     def __init__(self):
