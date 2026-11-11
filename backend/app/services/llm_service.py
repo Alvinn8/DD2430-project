@@ -17,7 +17,7 @@ from langchain.messages import (
     AnyMessage,
 )
 from app.config import settings
-from app.models import ImageInput
+from app.models import ExothermicDirection, ImageInput
 from app.services.llm_tools import TOOLS, SessionContext
 
 basepath = path.dirname(__file__)
@@ -174,6 +174,7 @@ class LLMSession:
         prompt: str,
         model: str | None = settings.DEFAULT_MODEL,
         images: Optional[List[ImageInput]] = None,
+        exothermic_direction: ExothermicDirection = "unknown",
     ) -> AsyncGenerator[str, None]:
         """
         Sends a message and yields the response as lines of JSON, one per event:
@@ -197,7 +198,28 @@ class LLMSession:
         agent = self._service.get_agent(model if model else settings.DEFAULT_MODEL)
 
         async with self._lock:
-            messages = [*self.messages, HumanMessage(content=content)]
+            if exothermic_direction == "unknown":
+                direction_instruction = (
+                    "The exothermic plotting direction is not specified. When "
+                    "interpreting a DSC graph or data, explicitly say that you "
+                    "cannot determine whether exothermic is plotted up or down, "
+                    "and ask the user to clarify before making direction-dependent "
+                    "interpretations."
+                )
+            else:
+                direction_instruction = (
+                    f"The user specifies that exothermic heat flow is plotted "
+                    f"{exothermic_direction}. When interpreting a DSC graph or "
+                    f"data, explicitly state this convention and use it to "
+                    f"distinguish exothermic from endothermic features."
+                )
+
+            messages = [
+                self.messages[0],
+                SystemMessage(content=direction_instruction),
+                *self.messages[1:],
+                HumanMessage(content=content),
+            ]
             seen = len(messages)
 
             # "messages" streams model tokens, "values" gives the full state after each step
@@ -236,4 +258,4 @@ class LLMSession:
                             yield _tool_result_event(message)
                     seen = len(messages)
 
-            self.messages = messages
+            self.messages = [messages[0], *messages[2:]]

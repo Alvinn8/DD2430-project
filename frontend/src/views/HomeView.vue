@@ -9,6 +9,7 @@ const {
   tokenUsage,
   availableModels,
   selectedModel,
+  exothermicDirection,
   sessionId,
   sendMessage,
   clearChat,
@@ -23,9 +24,11 @@ const {
     :is-typing="isTyping"
     :available-models="availableModels"
     :selected-model="selectedModel"
+    :exothermic-direction="exothermicDirection"
     :session-id="sessionId"
     @update:input-text="inputText = $event"
     @update:selected-model="selectedModel = $event"
+    @update:exothermic-direction="exothermicDirection = $event"
     @send="sendMessage"
     @new-chat="clearChat"
   />
