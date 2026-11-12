@@ -144,6 +144,9 @@ class LLMSession:
             suffix += 1
 
         destination.write_bytes(data)
+        if destination.name.endswith("_metadata.csv"):
+            # Metadata is read alongside its data file, so it is not selectable on its own
+            return destination.name
         self.context.dsc_files_available.append(destination.name)
         self.context.current_dsc_file = destination.name
         return destination.name
