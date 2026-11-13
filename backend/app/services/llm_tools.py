@@ -54,6 +54,27 @@ def select_dsc_file(runtime: ToolRuntime[SessionContext], file_name: str) -> str
 
 
 @tool(
+    "get_metadata",
+    description="Get the metadata of the currently selected DSC file.",
+)
+def get_metadata(runtime: ToolRuntime[SessionContext]) -> str:
+    file_name = runtime.context.current_dsc_file
+    if file_name is None:
+        return "No DSC file is currently selected."
+    file_path = runtime.context.dsc_file_path(file_name)
+
+    try:
+        metadata = read_standardized_dsc_metadata(file_path)
+    except (OSError, ValueError) as exc:
+        return f"Could not read metadata from DSC file '{file_name}': {exc}"
+
+    if not metadata:
+        return f"No metadata available for DSC file '{file_name}'."
+
+    return f"Metadata for '{file_name}': {metadata}"
+
+
+@tool(
     "plot_dsc",
     description=(
         "Plot heat flow against temperature for the currently selected DSC file "
@@ -296,6 +317,7 @@ def glass_transition_analysis(runtime: ToolRuntime[SessionContext]) -> str:
 TOOLS = [
     dsc_file_status,
     select_dsc_file,
+    get_metadata,
     plot_dsc,
     get_heat_flow_at_temperature,
     max_value_in_range,
