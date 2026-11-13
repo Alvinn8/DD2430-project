@@ -125,7 +125,9 @@ class LLMSession:
         self._service = service
         self._upload_dir = Path(tempfile.mkdtemp(prefix="dd2430-session-"))
         # State that tools can read and update, such as the current DSC file
-        self.context = SessionContext(session_id=session_id)
+        self.context = SessionContext(
+            session_id=session_id, upload_dir=self._upload_dir
+        )
         self.messages: list[AnyMessage] = [SystemMessage(content=SYSTEM_PROMPT)]
         self._lock = asyncio.Lock()
 
@@ -142,29 +144,20 @@ class LLMSession:
             suffix += 1
 
         destination.write_bytes(data)
-        file_path = str(destination)
-        self.context.dsc_files_available.append(file_path)
-        self.context.current_dsc_file = file_path
-        return file_path
+        if destination.name.endswith("_metadata.csv"):
+            # Metadata is read alongside its data file, so it is not selectable on its own
+            return destination.name
+        self.context.dsc_files_available.append(destination.name)
+        self.context.current_dsc_file = destination.name
+        return destination.name
 
     def remove_uploaded_file(self, filename: str) -> None:
         """Remove an uploaded file from this session's analysis context."""
-        matching_paths = [
-            Path(file_path)
-            for file_path in self.context.dsc_files_available
-            if Path(file_path).parent == self._upload_dir
-            and Path(file_path).name == Path(filename).name
-        ]
-        for file_path in matching_paths:
-            file_path.unlink(missing_ok=True)
-
-        removed_paths = {str(file_path) for file_path in matching_paths}
-        self.context.dsc_files_available = [
-            file_path
-            for file_path in self.context.dsc_files_available
-            if file_path not in removed_paths
-        ]
-        if self.context.current_dsc_file in removed_paths:
+        name = Path(filename).name
+        (self._upload_dir / name).unlink(missing_ok=True)
+        if name in self.context.dsc_files_available:
+            self.context.dsc_files_available.remove(name)
+        if self.context.current_dsc_file == name:
             self.context.current_dsc_file = None
 
     async def stream_chat_response(

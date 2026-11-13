@@ -20,6 +20,9 @@ def read_dsc_file(file_path):
     return df
 
 
+REQUIRED_COLUMNS = ("temperature_C", "heat_flow_mW")
+
+
 def read_standardized_dsc_file(file_path):
     """
     Reads a DSC data file in the standardized format.
@@ -31,7 +34,14 @@ def read_standardized_dsc_file(file_path):
     Returns:
     - df: pandas DataFrame with the three columns. Missing values are NaN.
     """
-    return pd.read_csv(file_path)
+    df = pd.read_csv(file_path)
+    missing = [column for column in REQUIRED_COLUMNS if column not in df.columns]
+    if missing:
+        raise ValueError(
+            f"missing columns {missing} (found {list(df.columns)}); "
+            "this is not a standardized DSC data file"
+        )
+    return df
 
 
 def read_standardized_dsc_metadata(file_path):
