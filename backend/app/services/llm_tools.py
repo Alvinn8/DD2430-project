@@ -78,10 +78,15 @@ def get_metadata(runtime: ToolRuntime[SessionContext]) -> str:
     "plot_dsc",
     description=(
         "Plot heat flow against temperature for the currently selected DSC file "
-        "and return the plot as an image, together with a short numeric summary."
+        "and return the plot as an image, together with a short numeric summary. "
+        "Optionally, limit the temperature range of the plot."
     ),
 )
-def plot_dsc(runtime: ToolRuntime[SessionContext]) -> str | list[dict]:
+def plot_dsc(
+    runtime: ToolRuntime[SessionContext],
+    start_temp: float | None = None,
+    end_temp: float | None = None,
+) -> str | list[dict]:
     file_name = runtime.context.current_dsc_file
     if file_name is None:
         return "No DSC file is currently selected."
@@ -96,6 +101,8 @@ def plot_dsc(runtime: ToolRuntime[SessionContext]) -> str | list[dict]:
     # Plot with the object-oriented API, since pyplot is not thread-safe
     fig = Figure(figsize=(8, 5), dpi=100)
     ax = fig.add_subplot()
+    if start_temp is not None and end_temp is not None:
+        df = df[(df["temperature_C"] >= start_temp) & (df["temperature_C"] <= end_temp)]
     ax.plot(df["temperature_C"], df["heat_flow_mW"], linewidth=1)
     ax.set_xlabel("Temperature (°C)")
     ax.set_ylabel("Heat flow (mW)")
