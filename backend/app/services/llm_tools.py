@@ -1,7 +1,9 @@
 import base64
 import io
 from dataclasses import dataclass, field
+import math
 from pathlib import Path
+import numexpr
 import numpy as np
 import pandas as pd
 from langchain.tools import tool, ToolRuntime
@@ -321,6 +323,22 @@ def glass_transition_analysis(runtime: ToolRuntime[SessionContext]) -> str:
     )
 
 
+@tool(
+    "calculator",
+    description=(
+        "Evaluate a single-line math expression, e.g. '37593 * 67' or 'sqrt(2) * pi.' "
+        "Uses numexpr syntax (supports +, -, *, /, **, sqrt, sin, cos, log, exp, etc.)."
+    ),
+)
+def calculator(expression: str) -> str:
+    result = numexpr.evaluate(
+        expression.strip(),
+        global_dict={},
+        local_dict={"pi": math.pi, "e": math.e},
+    )
+    return str(result)
+
+
 TOOLS = [
     dsc_file_status,
     select_dsc_file,
@@ -331,4 +349,5 @@ TOOLS = [
     min_value_in_range,
     melting_point_analysis,
     glass_transition_analysis,
+    calculator,
 ]
