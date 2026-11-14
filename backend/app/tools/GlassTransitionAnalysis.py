@@ -36,6 +36,29 @@ def _find_step_candidates(HFs, prominence):
     return pairs
 
 
+def _select_transition_bounds(T, HFs):
+    """Return (i_pre, i_post) indices for the largest valid falling step."""
+    prominence = MIN_PROMINENCE_FRAC * np.ptp(HFs)
+    candidates = [
+        (i_pre, i_dip)
+        for i_pre, i_dip in _find_step_candidates(HFs, prominence)
+        if MIN_STEP_WIDTH_C <= T[i_dip] - T[i_pre] <= MAX_STEP_WIDTH_C
+    ]
+    if not candidates:
+        raise ValueError("No glass transition step found in the data.")
+    return max(candidates, key=lambda ij: HFs[ij[0]] - HFs[ij[1]])
+
+
+def _fit_inflection_tangent(T, HF, HFs, i_pre, i_post):
+    """Compute inflection temperature and linear tangent parameters (T_infl, slope, intercept)."""
+    dHF = np.gradient(HFs, T)
+    i_infl = i_pre + int(np.argmin(dHF[i_pre : i_post + 1]))
+    T_infl = float(T[i_infl])
+    fit = np.abs(T - T_infl) <= TANGENT_HALF_WIDTH_C
+    slope, intercept = np.polyfit(T[fit], HF[fit], 1)
+    return T_infl, float(slope), float(intercept)
+
+
 def find_glass_transition(T, HF):
     """Locate and analyse the glass transition anywhere in the dataset.
 
@@ -50,23 +73,9 @@ def find_glass_transition(T, HF):
     HF = np.asarray(HF, dtype=float)
     win = min(_odd_window(SMOOTH_WINDOW_C, T), len(T) - (len(T) % 2 == 0))
     HFs = np.asarray(savgol_filter(HF, window_length=win, polyorder=3), dtype=float)
-    dHF = np.gradient(HFs, T)
-    prominence = MIN_PROMINENCE_FRAC * np.ptp(HFs)
 
-    candidates = [
-        (i_pre, i_dip)
-        for i_pre, i_dip in _find_step_candidates(HFs, prominence)
-        if MIN_STEP_WIDTH_C <= T[i_dip] - T[i_pre] <= MAX_STEP_WIDTH_C
-    ]
-    if not candidates:
-        raise ValueError("No glass transition step found in the data.")
-    i_pre, i_post = max(candidates, key=lambda ij: HFs[ij[0]] - HFs[ij[1]])
-
-    i_infl = i_pre + int(np.argmin(dHF[i_pre : i_post + 1]))
-    T_infl = float(T[i_infl])
-
-    fit = np.abs(T - T_infl) <= TANGENT_HALF_WIDTH_C
-    slope, intercept = np.polyfit(T[fit], HF[fit], 1)
+    i_pre, i_post = _select_transition_bounds(T, HFs)
+    T_infl, slope, intercept = _fit_inflection_tangent(T, HF, HFs, i_pre, i_post)
 
     hf_pre, hf_post = float(HFs[i_pre]), float(HFs[i_post])
     t_ons = (hf_pre - intercept) / slope
@@ -85,6 +94,6 @@ def find_glass_transition(T, HF):
         hf_post=hf_post,
         t_pre=float(T[i_pre]),
         t_post=float(T[i_post]),
-        slope=float(slope),
-        intercept=float(intercept),
+        slope=slope,
+        intercept=intercept,
     )
