@@ -117,6 +117,7 @@ async def stream_chat(request: Request):
                 model=model,
                 images=images,
                 exothermic_direction=payload.exothermic_direction,
+                exothermic_direction=payload.exothermic_direction,
             ),
             media_type="application/x-ndjson",
         )

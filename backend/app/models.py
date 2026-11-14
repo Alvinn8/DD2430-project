@@ -7,6 +7,9 @@ import numpy as np
 ExothermicDirection = Literal["unknown", "up", "down"]
 
 
+ExothermicDirection = Literal["unknown", "up", "down"]
+
+
 class DSCDataPoint(BaseModel):
     """Single DSC measurement point"""
 
