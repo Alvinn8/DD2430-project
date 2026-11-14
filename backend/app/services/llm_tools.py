@@ -1,7 +1,9 @@
 import base64
 import io
 from dataclasses import dataclass, field
+import math
 from pathlib import Path
+import numexpr
 import numpy as np
 import pandas as pd
 from langchain.tools import tool, ToolRuntime
@@ -54,13 +56,39 @@ def select_dsc_file(runtime: ToolRuntime[SessionContext], file_name: str) -> str
 
 
 @tool(
+    "get_metadata",
+    description="Get the metadata of the currently selected DSC file.",
+)
+def get_metadata(runtime: ToolRuntime[SessionContext]) -> str:
+    file_name = runtime.context.current_dsc_file
+    if file_name is None:
+        return "No DSC file is currently selected."
+    file_path = runtime.context.dsc_file_path(file_name)
+
+    try:
+        metadata = read_standardized_dsc_metadata(file_path)
+    except (OSError, ValueError) as exc:
+        return f"Could not read metadata from DSC file '{file_name}': {exc}"
+
+    if not metadata:
+        return f"No metadata available for DSC file '{file_name}'."
+
+    return f"Metadata for '{file_name}': {metadata}"
+
+
+@tool(
     "plot_dsc",
     description=(
         "Plot heat flow against temperature for the currently selected DSC file "
-        "and return the plot as an image, together with a short numeric summary."
+        "and return the plot as an image, together with a short numeric summary. "
+        "Optionally, limit the temperature range of the plot."
     ),
 )
-def plot_dsc(runtime: ToolRuntime[SessionContext]) -> str | list[dict]:
+def plot_dsc(
+    runtime: ToolRuntime[SessionContext],
+    start_temp: float | None = None,
+    end_temp: float | None = None,
+) -> str | list[dict]:
     file_name = runtime.context.current_dsc_file
     if file_name is None:
         return "No DSC file is currently selected."
@@ -75,6 +103,8 @@ def plot_dsc(runtime: ToolRuntime[SessionContext]) -> str | list[dict]:
     # Plot with the object-oriented API, since pyplot is not thread-safe
     fig = Figure(figsize=(8, 5), dpi=100)
     ax = fig.add_subplot()
+    if start_temp is not None and end_temp is not None:
+        df = df[(df["temperature_C"] >= start_temp) & (df["temperature_C"] <= end_temp)]
     ax.plot(df["temperature_C"], df["heat_flow_mW"], linewidth=1)
     ax.set_xlabel("Temperature (°C)")
     ax.set_ylabel("Heat flow (mW)")
@@ -293,13 +323,31 @@ def glass_transition_analysis(runtime: ToolRuntime[SessionContext]) -> str:
     )
 
 
+@tool(
+    "calculator",
+    description=(
+        "Evaluate a single-line math expression, e.g. '37593 * 67' or 'sqrt(2) * pi.' "
+        "Uses numexpr syntax (supports +, -, *, /, **, sqrt, sin, cos, log, exp, etc.)."
+    ),
+)
+def calculator(expression: str) -> str:
+    result = numexpr.evaluate(
+        expression.strip(),
+        global_dict={},
+        local_dict={"pi": math.pi, "e": math.e},
+    )
+    return str(result)
+
+
 TOOLS = [
     dsc_file_status,
     select_dsc_file,
+    get_metadata,
     plot_dsc,
     get_heat_flow_at_temperature,
     max_value_in_range,
     min_value_in_range,
     melting_point_analysis,
     glass_transition_analysis,
+    calculator,
 ]
