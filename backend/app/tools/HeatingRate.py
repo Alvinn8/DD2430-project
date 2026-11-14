@@ -26,7 +26,7 @@ def calculate_heating_rate(
 
     # Perform linear regression
     A = np.vstack([time_data, np.ones(len(time_data))]).T
-    m, c = np.linalg.lstsq(A, temperature_data, rcond=None)[0]
+    m, _ = np.linalg.lstsq(A, temperature_data, rcond=None)[0]
     return m
 
 

@@ -113,7 +113,8 @@ def plot_dsc(runtime: ToolRuntime[SessionContext]) -> str | list[dict]:
     description=(
         "Calculate the heating rate from temperature and time data."
         " The heating rate is calculated using a least squares fit assuming linear heating."
-        "Use this tool when metadata from the DSC file does not provide a heating rate, or when you want to verify the heating rate."
+        "Use this tool when metadata from the DSC file does not provide a heating rate, "
+        "or when you want to verify the heating rate from the actual data."
     ),
 )
 def get_calculated_heating_rate(
@@ -132,7 +133,7 @@ def get_calculated_heating_rate(
 
     # Calculate the heating rate
     heating_rate = calculate_heating_rate(
-        np.array(df["temperature_C"]), np.array(df["Time"])
+        np.array(df["temperature_C"]), np.array(df["time_min"])
     )
 
     return f"The heating rate is {heating_rate:.4f} °C/s."
@@ -159,7 +160,7 @@ def get_plot_heating_rate(
     except (OSError, ValueError, pd.errors.ParserError) as exc:
         return f"Could not read DSC file '{file_name}': {exc}"
 
-    image = plot_heating_rate(np.array(df["temperature_C"]), np.array(df["Time"]))
+    image = plot_heating_rate(np.array(df["temperature_C"]), np.array(df["time_min"]))
 
     buf = io.BytesIO()
     image.savefig(buf, format="png", bbox_inches="tight")
