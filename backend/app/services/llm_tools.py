@@ -10,6 +10,7 @@ from app.tools.DSCReader import (
     read_standardized_dsc_file,
     read_standardized_dsc_metadata,
 )
+from app.tools.GlassTransitionAnalysis import find_glass_transition
 from app.tools.MeltingPointAnalysis import find_melting_point
 
 
@@ -245,6 +246,53 @@ def melting_point_analysis(
     )
 
 
+@tool(
+    "glass_transition_analysis",
+    description=(
+        "Perform a glass transition analysis on the currently selected DSC file. "
+        "The glass transition is located as the most pronounced step in heat flow "
+        "with a width of 3 to 15 °C. Horizontal baselines are placed at the levels "
+        "before and after the step, and a tangent is fitted at the inflection point. "
+        "Returns the glass transition temperature Tg (midpoint between onset and "
+        "endset), the onset, endset and inflection temperatures, and the baseline "
+        "heat flow levels."
+    ),
+)
+def glass_transition_analysis(runtime: ToolRuntime[SessionContext]) -> str:
+    file_name = runtime.context.current_dsc_file
+    if file_name is None:
+        return "No DSC file is currently selected."
+    file_path = runtime.context.dsc_file_path(file_name)
+
+    try:
+        df = read_standardized_dsc_file(file_path)
+    except (OSError, ValueError, pd.errors.ParserError) as exc:
+        return f"Could not read DSC file '{file_name}': {exc}"
+
+    # The analysis expects data sorted by temperature without gaps
+    data = df.dropna(subset=["temperature_C", "heat_flow_mW"]).sort_values(
+        "temperature_C"
+    )
+
+    try:
+        gt = find_glass_transition(
+            data["temperature_C"].to_numpy(), data["heat_flow_mW"].to_numpy()
+        )
+    except (ValueError, TypeError, IndexError, np.linalg.LinAlgError) as exc:
+        return f"Glass transition analysis failed for '{file_name}': {exc}"
+
+    return (
+        f"Glass transition of '{file_name}': Tg = {gt.tg:.2f} °C "
+        f"(midpoint between onset and endset). "
+        f"Onset {gt.t_onset:.2f} °C, endset {gt.t_endset:.2f} °C, "
+        f"inflection point {gt.t_inflection:.2f} °C. "
+        f"Pre-transition baseline {gt.hf_pre:.4f} mW (level at {gt.t_pre:.2f} °C), "
+        f"post-transition baseline {gt.hf_post:.4f} mW (level at {gt.t_post:.2f} °C), "
+        f"step height {gt.hf_pre - gt.hf_post:.4f} mW. "
+        f"Tangent slope at inflection {gt.slope:.4f} mW/°C."
+    )
+
+
 TOOLS = [
     dsc_file_status,
     select_dsc_file,
@@ -253,4 +301,5 @@ TOOLS = [
     max_value_in_range,
     min_value_in_range,
     melting_point_analysis,
+    glass_transition_analysis,
 ]
