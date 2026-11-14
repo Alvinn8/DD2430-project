@@ -97,9 +97,10 @@ async def stream_chat(request: Request):
             raise HTTPException(
                 status_code=400, detail="Invalid chat request."
             ) from exc
-        session_id = payload.session_id
-        prompt = payload.prompt
-        model = payload.model
+
+    session_id = payload.session_id
+    prompt = payload.prompt
+    model = payload.model
 
     if not session_id:
         raise HTTPException(status_code=400, detail="Session id is required.")
