@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
+import numpy as np
 
 
 class DSCDataPoint(BaseModel):
@@ -130,3 +131,22 @@ class ChatRequest(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     timestamp: str
+
+
+class GlassTransition(BaseModel):
+    """Result of a glass transition analysis."""
+
+    tg: float  # half-width midpoint
+    t_onset: float
+    t_endset: float
+    t_inflection: float
+    hf_pre: float  # horizontal pre-transition baseline level
+    hf_post: float  # horizontal post-transition baseline level
+    t_pre: float  # temperature of the pre-baseline extremum
+    t_post: float  # temperature of the post-baseline extremum
+    slope: float
+    intercept: float
+
+    def step_hf(self, temperature):
+        """Heat flow of the tangent through the inflection point."""
+        return self.slope * np.asarray(temperature) + self.intercept
