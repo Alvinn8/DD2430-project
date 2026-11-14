@@ -12,6 +12,7 @@ from app.tools.DSCReader import (
 )
 from app.tools.GlassTransitionAnalysis import find_glass_transition
 from app.tools.MeltingPointAnalysis import find_melting_point
+from app.tools.HeatingRate import calculate_heating_rate, plot_heating_rate
 
 
 @dataclass
@@ -104,6 +105,72 @@ def plot_dsc(runtime: ToolRuntime[SessionContext]) -> str | list[dict]:
             "base64": base64.b64encode(buf.getvalue()).decode("ascii"),
             "mime_type": "image/png",
         },
+    ]
+
+
+@tool(
+    "calculate_heating_rate",
+    description=(
+        "Calculate the heating rate from temperature and time data."
+        " The heating rate is calculated using a least squares fit assuming linear heating."
+        "Use this tool when metadata from the DSC file does not provide a heating rate, or when you want to verify the heating rate."
+    ),
+)
+def get_calculated_heating_rate(
+    runtime: ToolRuntime[SessionContext],
+) -> str:
+    file_name = runtime.context.current_dsc_file
+    if file_name is None:
+        return "No DSC file is currently selected."
+
+    file_path = runtime.context.dsc_file_path(file_name)
+
+    try:
+        df = read_standardized_dsc_file(file_path)
+    except (OSError, ValueError, pd.errors.ParserError) as exc:
+        return f"Could not read DSC file '{file_name}': {exc}"
+
+    # Calculate the heating rate
+    heating_rate = calculate_heating_rate(
+        np.array(df["temperature_C"]), np.array(df["Time"])
+    )
+
+    return f"The heating rate is {heating_rate:.4f} °C/s."
+
+
+@tool(
+    "plot_heating_rate",
+    description=(
+        "Plot the heating rate from temperature and time data."
+        "The heating rate is calculated using a least squares fit assuming linear heating."
+    ),
+)
+def get_plot_heating_rate(
+    runtime: ToolRuntime[SessionContext],
+) -> str | list[dict]:
+    file_name = runtime.context.current_dsc_file
+    if file_name is None:
+        return "No DSC file is currently selected."
+
+    file_path = runtime.context.dsc_file_path(file_name)
+
+    try:
+        df = read_standardized_dsc_file(file_path)
+    except (OSError, ValueError, pd.errors.ParserError) as exc:
+        return f"Could not read DSC file '{file_name}': {exc}"
+
+    image = plot_heating_rate(np.array(df["temperature_C"]), np.array(df["Time"]))
+
+    buf = io.BytesIO()
+    image.savefig(buf, format="png", bbox_inches="tight")
+
+    return [
+        {
+            "type": "image",
+            "base64": base64.b64encode(buf.getvalue()).decode("ascii"),
+            "mime_type": "image/png",
+        },
+        {"type": "text", "text": f"Heating rate plot for '{file_name}'."},
     ]
 
 
@@ -302,4 +369,6 @@ TOOLS = [
     min_value_in_range,
     melting_point_analysis,
     glass_transition_analysis,
+    get_calculated_heating_rate,
+    get_plot_heating_rate,
 ]
