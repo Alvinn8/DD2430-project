@@ -173,3 +173,18 @@ class EnthalpyFit(BaseModel):
     def ok(self) -> bool:
         """True when no quality problem was detected."""
         return not self.problems
+
+
+class EnthalpyResult(BaseModel):
+    """Combined fit + integration result."""
+
+    fit: EnthalpyFit
+    window: tuple[float, float]
+    event: str
+    warnings: list[str]
+    T: np.ndarray = Field(repr=False, default_factory=lambda: np.empty(0))
+    y: np.ndarray = Field(repr=False, default_factory=lambda: np.empty(0))
+
+    @property
+    def ok(self) -> bool:
+        return self.fit.ok
