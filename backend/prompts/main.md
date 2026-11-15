@@ -15,3 +15,5 @@ The columns in the .csv file are as follows:
 - heat_flow_mW: The heat flow in milliwatts, which indicates the amount of heat absorbed or released by the sample.
 
 Some columns may be empty in case the data is not available. For example, some experiments may not have time data, in which case the time_min column will still be provided, but all values will be empty.
+
+You may respond with LaTeX mathematical expressions.

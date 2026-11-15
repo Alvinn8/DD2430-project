@@ -208,55 +208,55 @@ const parsedContent = computed(() => {
         })
       }}
     </span>
-  </div>
 
-  <Teleport to="body">
-    <Transition name="attachment-dialog">
-      <div
-        v-if="selectedAttachment"
-        class="fixed inset-0 z-50 flex cursor-pointer items-center justify-center bg-[#293246]/55 p-4 backdrop-blur-md sm:p-6"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="`Preview of ${selectedAttachment.name}`"
-        @click.self="closeAttachment"
-      >
-        <button
-          type="button"
-          aria-label="Close attachment preview"
-          class="absolute right-5 top-5 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/20 text-2xl text-white transition-colors hover:bg-white/35"
-          @click="closeAttachment"
-        >
-          ×
-        </button>
-        <img
-          v-if="selectedAttachment.type.startsWith('image/')"
-          :src="selectedAttachment.url"
-          alt="Expanded attachment"
-          class="max-h-[90vh] max-w-[92vw] cursor-default rounded-2xl object-contain shadow-[0_20px_70px_rgba(0,0,0,0.28)]"
-        />
-        <iframe
-          v-else-if="selectedAttachment.type === 'application/pdf'"
-          :src="selectedAttachment.url"
-          :title="selectedAttachment.name"
-          class="h-[88vh] w-[min(92vw,900px)] cursor-default rounded-2xl bg-white shadow-[0_20px_70px_rgba(0,0,0,0.28)]"
-        />
+    <Teleport to="body">
+      <Transition name="attachment-dialog">
         <div
-          v-else
-          class="flex h-[min(82vh,720px)] w-[min(92vw,900px)] cursor-default flex-col overflow-hidden rounded-2xl bg-[#F8FAFF] shadow-[0_20px_70px_rgba(0,0,0,0.28)]"
+          v-if="selectedAttachment"
+          class="fixed inset-0 z-50 flex cursor-pointer items-center justify-center bg-[#293246]/55 p-4 backdrop-blur-md sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="`Preview of ${selectedAttachment.name}`"
+          @click.self="closeAttachment"
         >
+          <button
+            type="button"
+            aria-label="Close attachment preview"
+            class="absolute right-5 top-5 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/20 text-2xl text-white transition-colors hover:bg-white/35"
+            @click="closeAttachment"
+          >
+            ×
+          </button>
+          <img
+            v-if="selectedAttachment.type.startsWith('image/')"
+            :src="selectedAttachment.url"
+            alt="Expanded attachment"
+            class="max-h-[90vh] max-w-[92vw] cursor-default rounded-2xl object-contain shadow-[0_20px_70px_rgba(0,0,0,0.28)]"
+          />
+          <iframe
+            v-else-if="selectedAttachment.type === 'application/pdf'"
+            :src="selectedAttachment.url"
+            :title="selectedAttachment.name"
+            class="h-[88vh] w-[min(92vw,900px)] cursor-default rounded-2xl bg-white shadow-[0_20px_70px_rgba(0,0,0,0.28)]"
+          />
           <div
-            class="border-b border-[#DCE3F0] px-5 py-3 text-sm font-medium text-[#43516B]"
+            v-else
+            class="flex h-[min(82vh,720px)] w-[min(92vw,900px)] cursor-default flex-col overflow-hidden rounded-2xl bg-[#F8FAFF] shadow-[0_20px_70px_rgba(0,0,0,0.28)]"
           >
-            {{ selectedAttachment.name }}
+            <div
+              class="border-b border-[#DCE3F0] px-5 py-3 text-sm font-medium text-[#43516B]"
+            >
+              {{ selectedAttachment.name }}
+            </div>
+            <pre
+              class="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-5 text-left text-xs leading-6 text-[#43516B]"
+              >{{ selectedText ?? "Loading preview..." }}</pre
+            >
           </div>
-          <pre
-            class="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-5 text-left text-xs leading-6 text-[#43516B]"
-            >{{ selectedText ?? "Loading preview..." }}</pre
-          >
         </div>
-      </div>
-    </Transition>
-  </Teleport>
+      </Transition>
+    </Teleport>
+  </div>
 </template>
 
 <style scoped>
