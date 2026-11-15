@@ -12,6 +12,8 @@ from scipy.optimize import curve_fit
 from scipy.signal import find_peaks, peak_widths, savgol_filter
 from scipy.special import erf, erfcx
 
+SMOOTH_WINDOW_C = 1.0
+
 
 # DSC_N(T) models (Ghanbari et al. paper Eqs. 16-20)
 def peak_shape(T, Tm, alpha, beta):
@@ -51,4 +53,24 @@ def dsc_n(T, dH, Tm, alpha, beta, dCp, B, C, D):
     """DSC_N(T), Eq. 20 of the paper (single peak)."""
     return dH * peak_shape(T, Tm, alpha, beta) + baseline_n(
         T, Tm, alpha, beta, dCp, B, C, D
+    )
+
+
+# Helper functions for the DSC_N(T) fit
+def _odd_window(width_c, T):
+    """Convert a window width in deg C to an odd number of samples (>= 5)."""
+    dt = float(np.median(np.diff(T)))
+    if dt <= 0:
+        raise ValueError("Temperature must be strictly increasing.")
+    n = max(int(round(width_c / dt)), 5)
+    return n if n % 2 == 1 else n + 1
+
+
+def _smooth(T, y):
+    n = len(T)
+    if n < 5:
+        raise ValueError("Too few data points (need at least 5).")
+    win = min(_odd_window(SMOOTH_WINDOW_C, T), n if n % 2 == 1 else n - 1)
+    return np.asarray(
+        savgol_filter(y, window_length=win, polyorder=min(3, win - 1)), dtype=float
     )
