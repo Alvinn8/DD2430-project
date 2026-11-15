@@ -401,3 +401,32 @@ def analyze_enthalpy(
         T=Tw,
         y=yw,
     )
+
+
+# added plotting tool function
+def plot_enthalpy(result: EnthalpyResult) -> Figure:
+    """Fit overlay with residuals (event drawn pointing up)."""
+
+    fig = Figure(figsize=(8, 6), dpi=100)
+    ax, ax_res = fig.subplots(2, 1, sharex=True, gridspec_kw={"height_ratios": [3, 1]})
+    T, y = result.T, result.y
+    fit = result.fit
+    ax.plot(T, y, ".", ms=3, color="tab:red", label="Data")
+    ax.plot(
+        T,
+        fit.fit_curve,
+        "k-",
+        lw=1.5,
+        label=f"DSC_N(T) fit, ΔH = {fit.dH_J_per_g:.2f} J/g",
+    )
+    ax.plot(T, fit.baseline_curve, "--", color="gray", label="Fit baseline")
+    ax.axvline(fit.Tm0, color="tab:green", ls="--", label=f"Tm0 = {fit.Tm0:.2f} °C")
+    ax.set_ylabel("Heat flow (W/g, event up)")
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.3)
+    ax_res.plot(T, y - fit.fit_curve, color="tab:red", lw=0.8)
+    ax_res.axhline(0, color="k", lw=0.5)
+    ax_res.set_xlabel("Temperature (°C)")
+    ax_res.set_ylabel("Residual")
+    ax_res.grid(True, alpha=0.3)
+    return fig
