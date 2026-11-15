@@ -23,8 +23,8 @@ MIN_R2 = 0.97
 MAX_AGREEMENT_PCT = 10.0
 DECOMP_FRACTION = 0.3
 PARAM_NAMES = ("dH", "Tm", "alpha", "beta", "dCp", "B", "C", "D")
-ALPHA_STARTS = (0.5, 2.0, 8.0)
-BETA_STARTS = (1.0, 10.0, 50.0)
+ALPHA_STARTS = (0.05, 0.5, 2.0, 8.0)
+BETA_STARTS = (0.05, 1.0, 10.0, 50.0)
 
 
 # DSC_N(T) models (Ghanbari et al. paper Eqs. 16-20)
