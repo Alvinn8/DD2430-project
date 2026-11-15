@@ -12,6 +12,7 @@ from app.tools.DSCReader import (
 )
 from app.tools.GlassTransitionAnalysis import find_glass_transition
 from app.tools.MeltingPointAnalysis import find_melting_point
+from app.tools.EnthalpyAnalysis import analyze_enthalpy, plot_enthalpy
 
 
 @dataclass
@@ -30,6 +31,127 @@ class SessionContext:
         if self.upload_dir is None:
             return file_name
         return str(self.upload_dir / file_name)
+
+
+def _meta_float(metadata, *keys):
+    """Read a numeric metadata value, returning None if missing or NaN."""
+    for key in keys:
+        try:
+            value = float((metadata or {}).get(key))
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(value):
+            return value
+    return None
+
+
+@tool(
+    "enthalpy_analysis",
+    description=(
+        "Calculate the enthalpy (J/g) of one thermal event, e.g. the enthalpy of fusion, "
+        "in the currently selected DSC file. Two independent estimates are returned: "
+        "(1) a fit of the analytical DSC_N(T) model (Ghanbari et al. 2023), and "
+        "(2) baseline-corrected numerical integration. Also returns the equilibrium "
+        "melting temperature Tm0, peak, onset and endset temperatures, fit quality and "
+        "warnings. You MUST know whether endothermic peaks point up (endo_up=True) or "
+        "down; ask the user if unclear. The sample mass (mg) is needed unless the heat "
+        "flow is already normalized; it is read from the file metadata when available, "
+        "otherwise ask the user. Use t_min/t_max to isolate the event and to exclude a "
+        "decomposition exotherm that follows melting. event is 'endothermic' for melting "
+        "and 'exothermic' for crystallization or decomposition. baseline is 'linear' or "
+        "'sigmoidal' (use sigmoidal if the baseline steps across the peak)."
+    ),
+)
+def enthalpy_analysis(
+    runtime: ToolRuntime[SessionContext],
+    endo_up: bool,
+    sample_mass: float | None = None,
+    heat_flow_normalized: bool = False,
+    heating_rate: float | None = None,
+    event: str = "endothermic",
+    t_min: float | None = None,
+    t_max: float | None = None,
+    baseline: str = "linear",
+    fit_dcp: bool = True,
+) -> str | list[dict]:
+    file_name = runtime.context.current_dsc_file
+    if file_name is None:
+        return "No DSC file is currently selected."
+    file_path = runtime.context.dsc_file_path(file_name)
+
+    try:
+        df = read_standardized_dsc_file(file_path)
+        metadata = read_standardized_dsc_metadata(file_path)
+    except (OSError, ValueError, pd.errors.ParserError) as exc:
+        return f"Could not read DSC file '{file_name}': {exc}"
+
+    if heating_rate is None:
+        heating_rate = _meta_float(
+            metadata, "heating_rate", "heating_rate_C_per_min"
+        )
+    if heating_rate is None:
+        return (
+            "The heating rate is not in the metadata and was not given. "
+            "Ask the user for it (°C/min)."
+        )
+    if sample_mass is None and not heat_flow_normalized:
+        sample_mass = _meta_float(metadata, "sample_mass", "sample_mass_mg")
+    if sample_mass is None and not heat_flow_normalized:
+        return (
+            "The sample mass is not in the metadata and was not given. Ask the user for "
+            "the sample mass (mg), or whether the heat flow is already per gram."
+        )
+
+    data = df.dropna(subset=["temperature_C", "heat_flow_mW"]).sort_values(
+        "temperature_C"
+    )
+    try:
+        result = analyze_enthalpy(
+            data["temperature_C"].to_numpy(),
+            data["heat_flow_mW"].to_numpy(),
+            heating_rate=heating_rate,
+            sample_mass=sample_mass,
+            already_normalized=heat_flow_normalized,
+            endo_up=endo_up,
+            event=event,
+            t_min=t_min,
+            t_max=t_max,
+            baseline=baseline,
+            fit_dcp=fit_dcp,
+        )
+    except (ValueError, TypeError, IndexError, np.linalg.LinAlgError) as exc:
+        return f"Enthalpy analysis failed for '{file_name}': {exc}"
+
+    fit = result.fit
+
+    def fmt(value):
+        return "n/a" if value is None else f"{value:.2f} °C"
+
+    summary = (
+        f"Enthalpy analysis of '{file_name}' ({event} event, window "
+        f"{result.window[0]:.1f} to {result.window[1]:.1f} °C, "
+        f"{heating_rate:g} °C/min). "
+        f"DSC_N(T) fit: dH = {fit.dH_J_per_g:.2f} ± {fit.dH_J_per_g_err:.2f} J/g, "
+        f"Tm0 = {fit.Tm0:.2f} ± {fit.Tm0_err:.2f} °C, peak {fmt(fit.t_peak)}, "
+        f"onset {fmt(fit.t_onset)}, endset {fmt(fit.t_endset)}, R² = {fit.r_squared:.4f}, "
+        f"alpha = {fit.params['alpha']:.3g} 1/K, beta = {fit.params['beta']:.3g} 1/K², "
+        f"dCp = {fit.params['dCp']:.3g} W/(g·K). "
+        f"Quality check: {'passed' if result.ok else 'NOT passed'}."
+    )
+    if result.warnings:
+        summary += " Warnings: " + "; ".join(result.warnings) + "."
+
+    fig = plot_enthalpy(result)
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight")
+    return [
+        {"type": "text", "text": summary},
+        {
+            "type": "image",
+            "base64": base64.b64encode(buf.getvalue()).decode("ascii"),
+            "mime_type": "image/png",
+        },
+    ]
 
 
 @tool(
@@ -80,9 +202,14 @@ def plot_dsc(runtime: ToolRuntime[SessionContext]) -> str | list[dict]:
     ax.set_ylabel("Heat flow (mW)")
     ax.grid(True, alpha=0.3)
     if metadata:
-        ax.set_title(
-            f"{metadata['sample_name']} ({metadata['heating_rate_C_per_min']} °C/min)"
+        sample_name = metadata.get("sample_name", file_name)
+        heating_rate = metadata.get(
+            "heating_rate", metadata.get("heating_rate_C_per_min")
         )
+        title = str(sample_name)
+        if heating_rate is not None and not pd.isna(heating_rate):
+            title += f" ({heating_rate} °C/min)"
+        ax.set_title(title)
 
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight")
@@ -302,4 +429,5 @@ TOOLS = [
     min_value_in_range,
     melting_point_analysis,
     glass_transition_analysis,
+    enthalpy_analysis,
 ]

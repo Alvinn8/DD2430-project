@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional
 from datetime import datetime
 import numpy as np
@@ -155,6 +155,8 @@ class GlassTransition(BaseModel):
 class EnthalpyFit(BaseModel):
     """Result of the DSC_N(T) fit."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     params: dict[str, float]  # raw fit parameters; dH in (W/g)*K
     errors: dict[str, float]  # 1-sigma from the covariance matrix (nan if unknown)
     dH_J_per_g: float
@@ -177,6 +179,8 @@ class EnthalpyFit(BaseModel):
 
 class EnthalpyResult(BaseModel):
     """Combined fit + integration result."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     fit: EnthalpyFit
     window: tuple[float, float]

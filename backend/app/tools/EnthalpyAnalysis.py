@@ -12,7 +12,7 @@ from scipy.integrate import cumulative_trapezoid, trapezoid
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks, peak_widths, savgol_filter
 from scipy.special import erf, erfcx
-from models import EnthalpyFit, EnthalpyResult
+from app.models import EnthalpyFit, EnthalpyResult
 
 SMOOTH_WINDOW_C = 1.0
 MIN_WINDOW_POINTS = 15
@@ -323,7 +323,7 @@ def analyze_enthalpy(
     HF,
     *,
     heating_rate: float,
-    sample_mass_mg: float | None = None,
+    sample_mass: float | None = None,
     already_normalized=False,
     endo_up=True,
     event="endothermic",
@@ -337,10 +337,10 @@ def analyze_enthalpy(
 
     Args:
         T: temperature (deg C).
-        HF: heat flow, in mW (give sample_mass_mg) or already per gram
+        HF: heat flow, in mW (give sample_mass) or already per gram
             (already_normalized=True, W/g or mW/mg).
         heating_rate: heating rate; required for J/g.
-        sample_mass_mg: sample mass; required unless already_normalized.
+        sample_mass: sample mass; required unless already_normalized.
         endo_up: True if endothermic events point up in the raw data.
         event: 'endothermic' (melting) or 'exothermic' (crystallization,
             decomposition). The reported enthalpy of an exothermic event is negative.
@@ -353,7 +353,7 @@ def analyze_enthalpy(
         raise ValueError("event must be 'endothermic' or 'exothermic'")
     if not np.isfinite(heating_rate) or heating_rate <= 0:
         raise ValueError("A positive heating rate (°C/min) is required.")
-    if not already_normalized and not (sample_mass_mg and sample_mass_mg > 0):
+    if not already_normalized and not (sample_mass and sample_mass > 0):
         raise ValueError(
             "Sample mass (mg) is required to normalize the heat flow, or state "
             "that the heat flow is already normalized per gram."
@@ -368,8 +368,8 @@ def analyze_enthalpy(
 
     if already_normalized:
         y = HF
-    elif sample_mass_mg is not None:
-        y = HF / float(sample_mass_mg)  # mW/mg = W/g
+    elif sample_mass is not None:
+        y = HF / float(sample_mass)  # mW/mg = W/g
     else:
         raise ValueError("Sample mass (mg) is required to normalize the heat flow.")
 
