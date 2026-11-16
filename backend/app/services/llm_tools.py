@@ -33,6 +33,19 @@ class SessionContext:
         return str(self.upload_dir / file_name)
 
 
+def _heating_rate_arrays(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray] | None:
+    """Return finite temperature/time pairs, or None when they are unavailable."""
+    required = ("time_min", "temperature_C")
+    if any(column not in df.columns for column in required):
+        return None
+
+    data = df[list(required)].apply(pd.to_numeric, errors="coerce").dropna()
+    if len(data) < 2 or data["time_min"].nunique() < 2:
+        return None
+
+    return data["temperature_C"].to_numpy(), data["time_min"].to_numpy()
+
+
 @tool(
     "dsc_file_status",
     description="List which DSC files are available and which one is currently selected.",
@@ -131,12 +144,17 @@ def get_calculated_heating_rate(
     except (OSError, ValueError, pd.errors.ParserError) as exc:
         return f"Could not read DSC file '{file_name}': {exc}"
 
-    # Calculate the heating rate
-    heating_rate = calculate_heating_rate(
-        np.array(df["temperature_C"]), np.array(df["time_min"])
-    )
+    arrays = _heating_rate_arrays(df)
+    if arrays is None:
+        return (
+            f"DSC file '{file_name}' does not contain usable numeric "
+            "'time_min' and 'temperature_C' data."
+        )
 
-    return f"The heating rate is {heating_rate:.4f} °C/s."
+    # Calculate the heating rate
+    heating_rate, r_squared = calculate_heating_rate(*arrays)
+
+    return f"The heating rate is {heating_rate:.4f} °C/min with an R-squared value of {r_squared:.4f}."
 
 
 @tool(
@@ -160,7 +178,14 @@ def get_plot_heating_rate(
     except (OSError, ValueError, pd.errors.ParserError) as exc:
         return f"Could not read DSC file '{file_name}': {exc}"
 
-    image = plot_heating_rate(np.array(df["temperature_C"]), np.array(df["time_min"]))
+    arrays = _heating_rate_arrays(df)
+    if arrays is None:
+        return (
+            f"DSC file '{file_name}' does not contain usable numeric "
+            "'time_min' and 'temperature_C' data."
+        )
+
+    image = plot_heating_rate(*arrays)
 
     buf = io.BytesIO()
     image.savefig(buf, format="png", bbox_inches="tight")

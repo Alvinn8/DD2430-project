@@ -8,7 +8,7 @@ from matplotlib.figure import Figure
 
 def calculate_heating_rate(
     temperature_data: np.ndarray, time_data: np.ndarray
-) -> np.ndarray:
+) -> tuple[float, float]:
     """
     Calculate the heating rate from temperature and time data assuming linear heating,
     least squares fit.
@@ -18,7 +18,7 @@ def calculate_heating_rate(
         time_data (np.ndarray): Array of time values (s).
 
     Returns:
-        np.ndarray: Array of heating rates (°C/s).
+        tuple[float, float]: A tuple containing the heating rate (°C/min) and the R-squared value.
     """
     # Ensure the input arrays are numpy arrays
     temperature_data = np.asarray(temperature_data)
@@ -26,8 +26,14 @@ def calculate_heating_rate(
 
     # Perform linear regression
     A = np.vstack([time_data, np.ones(len(time_data))]).T
-    m, _ = np.linalg.lstsq(A, temperature_data, rcond=None)[0]
-    return m
+    m, c = np.linalg.lstsq(A, temperature_data, rcond=None)[0]
+
+    predicted = m * time_data + c
+    ss_res = np.sum((temperature_data - predicted) ** 2)
+    ss_tot = np.sum((temperature_data - np.mean(temperature_data)) ** 2)
+    r_squared = 1.0 - (ss_res / ss_tot) if ss_tot != 0 else np.nan
+
+    return float(m), float(r_squared)
 
 
 def plot_heating_rate(temperature_data: np.ndarray, time_data: np.ndarray) -> Figure:
@@ -39,7 +45,7 @@ def plot_heating_rate(temperature_data: np.ndarray, time_data: np.ndarray) -> Fi
         time_data (np.ndarray): Array of time values (s).
     """
     # Calculate the heating rate
-    heating_rate = calculate_heating_rate(temperature_data, time_data)
+    heating_rate, r_squared = calculate_heating_rate(temperature_data, time_data)
 
     # Create a linear fit line
     fit_line = heating_rate * time_data + np.mean(
@@ -53,7 +59,7 @@ def plot_heating_rate(temperature_data: np.ndarray, time_data: np.ndarray) -> Fi
     ax.plot(
         time_data,
         fit_line,
-        label=f"Linear Fit (Heating Rate: {heating_rate:.2f} °C/s)",
+        label=f"Linear Fit (Heating Rate: {heating_rate:.2f} °C/min, R²: {r_squared:.2f})",
         color="red",
         linestyle="--",
     )
