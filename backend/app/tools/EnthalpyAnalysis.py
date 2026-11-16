@@ -391,8 +391,8 @@ def analyze_enthalpy(
 
     notes: list[str] = list(fit.problems)
 
-    fit.dH_J_per_g *= event_sign
-    fit.dH_J_per_g_err = abs(fit.dH_J_per_g_err)
+    fit.dH_J_per_g *= event_sign  # pylint: disable=invalid-name
+    fit.dH_J_per_g_err = abs(fit.dH_J_per_g_err)  # pylint: disable=invalid-name
 
     return EnthalpyResult(
         fit=fit,

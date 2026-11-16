@@ -66,7 +66,7 @@ def _meta_float(metadata, *keys):
         "'sigmoidal' (use sigmoidal if the baseline steps across the peak)."
     ),
 )
-def enthalpy_analysis(
+def enthalpy_analysis(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     runtime: ToolRuntime[SessionContext],
     endo_up: bool,
     sample_mass: float | None = None,
