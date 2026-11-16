@@ -1,3 +1,5 @@
+# pylint: disable=too-many-arguments,too-many-locals
+
 import base64
 import io
 from dataclasses import dataclass, field
@@ -71,7 +73,6 @@ def enthalpy_analysis(
     event: str = "endothermic",
     t_min: float | None = None,
     t_max: float | None = None,
-    baseline: str = "linear",
     fit_dcp: bool = True,
 ) -> str | list[dict]:
     file_name = runtime.context.current_dsc_file
@@ -86,9 +87,7 @@ def enthalpy_analysis(
         return f"Could not read DSC file '{file_name}': {exc}"
 
     if heating_rate is None:
-        heating_rate = _meta_float(
-            metadata, "heating_rate", "heating_rate_C_per_min"
-        )
+        heating_rate = _meta_float(metadata, "heating_rate", "heating_rate_C_per_min")
     if heating_rate is None:
         return (
             "The heating rate is not in the metadata and was not given. "
@@ -116,7 +115,6 @@ def enthalpy_analysis(
             event=event,
             t_min=t_min,
             t_max=t_max,
-            baseline=baseline,
             fit_dcp=fit_dcp,
         )
     except (ValueError, TypeError, IndexError, np.linalg.LinAlgError) as exc:

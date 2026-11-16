@@ -2,15 +2,17 @@
 
 # pylint: disable=invalid-name,too-many-arguments,too-many-locals
 # pylint: disable=too-many-positional-arguments
+# pylint: disable=no-name-in-module,unsubscriptable-object
+# pylint: disable=invalid-name,too-many-statements
 
 from __future__ import annotations
 import warnings
 
 import numpy as np
 from matplotlib.figure import Figure
-from scipy.integrate import cumulative_trapezoid, trapezoid
+from scipy.integrate import trapezoid
 from scipy.optimize import curve_fit
-from scipy.signal import find_peaks, peak_widths, savgol_filter
+from scipy.signal import peak_widths, savgol_filter
 from scipy.special import erf, erfcx
 from app.models import EnthalpyFit, EnthalpyResult
 
@@ -330,7 +332,6 @@ def analyze_enthalpy(
     t_min=None,
     t_max=None,
     window=None,
-    baseline="linear",
     fit_dcp=True,
 ) -> EnthalpyResult:
     """Enthalpy of one thermal event by DSC_N(T) fit and by integration.
