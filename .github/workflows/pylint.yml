@@ -34,6 +34,9 @@ jobs:
             echo "No Python files found to lint. Skipping..."
             exit 0
           else
-            # Run pylint with backend on PYTHONPATH so internal module imports resolve cleanly
-            PYTHONPATH=backend pylint --max-line-length=120 --disable=C0114,C0115,C0116,W0621,C0411,C0413,W0707 $FILES
+            PYTHONPATH=backend pylint \
+              --max-line-length=120 \
+              --disable=C0114,C0115,C0116,W0621,C0411,C0413,W0707 \
+              --good-names=i,j,k,T,y,B,C,D,HF,Tw,yw,Tg,Tp,dH_J_per_g,dH_J_per_g_err,Tm0,Tm0_err \
+              $FILES
           fi

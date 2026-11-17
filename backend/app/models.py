@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional
 from datetime import datetime
 import numpy as np
@@ -150,3 +150,45 @@ class GlassTransition(BaseModel):
     def step_hf(self, temperature):
         """Heat flow of the tangent through the inflection point."""
         return self.slope * np.asarray(temperature) + self.intercept
+
+
+class EnthalpyFit(BaseModel):
+    """Result of the DSC_N(T) fit."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    params: dict[str, float]  # raw fit parameters; dH in (W/g)*K
+    errors: dict[str, float]  # 1-sigma from the covariance matrix (nan if unknown)
+    dH_J_per_g: float
+    dH_J_per_g_err: float
+    Tm0: float
+    Tm0_err: float
+    r_squared: float
+    t_peak: float
+    t_onset: float | None
+    t_endset: float | None
+    problems: list[str]
+    fit_curve: np.ndarray = Field(repr=False, default_factory=lambda: np.empty(0))
+    baseline_curve: np.ndarray = Field(repr=False, default_factory=lambda: np.empty(0))
+
+    @property
+    def ok(self) -> bool:
+        """True when no quality problem was detected."""
+        return not self.problems
+
+
+class EnthalpyResult(BaseModel):
+    """Combined fit + integration result."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    fit: EnthalpyFit
+    window: tuple[float, float]
+    event: str
+    warnings: list[str]
+    T: np.ndarray = Field(repr=False, default_factory=lambda: np.empty(0))
+    y: np.ndarray = Field(repr=False, default_factory=lambda: np.empty(0))
+
+    @property
+    def ok(self) -> bool:
+        return self.fit.ok
