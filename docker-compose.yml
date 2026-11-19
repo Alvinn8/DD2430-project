@@ -12,7 +12,7 @@ services:
     environment:
       - ENVIRONMENT=development
       - GOOGLE_APPLICATION_CREDENTIALS=/app/service-account.json
-      - GCP_LOCATION=europe-west1
+      - GCP_LOCATION=global
 
   frontend:
     build:
