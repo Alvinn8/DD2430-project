@@ -1,4 +1,15 @@
 services:
+  cloud-sql-proxy:
+    image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.1
+    container_name: dd2430-cloud-sql-proxy
+    command:
+      - "--address=0.0.0.0"
+      - "--port=5432"
+      - "--credentials-file=/config/service-account.json"
+      - "${CLOUD_SQL_CONNECTION_NAME}"
+    volumes:
+      - ./backend/service-account.json:/config/service-account.json:ro
+
   backend:
     build:
       context: ./backend
@@ -8,11 +19,16 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
-      - ./backend/service-account.json:/app/service-account.json
+      - ./backend/service-account.json:/app/service-account.json:ro
+    env_file:
+      - .env
     environment:
       - ENVIRONMENT=development
       - GOOGLE_APPLICATION_CREDENTIALS=/app/service-account.json
       - GCP_LOCATION=global
+      - DATABASE_URL=postgresql+asyncpg://dsc_app_user:${DB_PASSWORD}@cloud-sql-proxy:5432/dsc_platform
+    depends_on:
+      - cloud-sql-proxy
 
   frontend:
     build:
