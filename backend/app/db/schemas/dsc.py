@@ -102,3 +102,5 @@ class FileUploadResponse(BaseModel):
     metadata: DSCMetadataRead
     missing_critical_fields: list[str]
     ready_for_analysis: bool
+    parse_warnings: list[str] = []
+    unconfirmed_fields: list[str] = []

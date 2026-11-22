@@ -49,6 +49,7 @@ class DSCFile(Base):
         foreign_keys="AnalysisRun.file_id",
         cascade="all, delete-orphan",
     )
+    table_uri: Mapped[Optional[str]] = mapped_column(Text)
 
 
 class DSCMetadata(Base):
@@ -127,6 +128,16 @@ class DSCMetadata(Base):
 
     file: Mapped["DSCFile"] = relationship(
         back_populates="metadata_record", foreign_keys=[file_id]
+    )
+
+    field_sources: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, nullable=False
+    )
+    parse_warnings: Mapped[list[str]] = mapped_column(
+        JSONB, default=list, nullable=False
+    )
+    unconfirmed_fields: Mapped[list[str]] = mapped_column(
+        JSONB, default=list, nullable=False
     )
 
 
