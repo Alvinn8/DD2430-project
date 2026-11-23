@@ -179,6 +179,12 @@ class AnalysisRun(Base):
     thermal_events: Mapped[list["ThermalEvent"]] = relationship(
         back_populates="run", cascade="all, delete-orphan"
     )
+    tool_name: Mapped[Optional[str]] = mapped_column(String(50))
+    report_uri: Mapped[Optional[str]] = mapped_column(Text)
+    plot_uris: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    input_snapshot: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, nullable=False
+    )
 
 
 class ThermalEvent(Base):
@@ -223,3 +229,7 @@ class ThermalEvent(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text)
 
     run: Mapped["AnalysisRun"] = relationship(back_populates="thermal_events")
+
+    midpoint_temp_value: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4))
+    inflection_temp_value: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4))
+    enthalpy_error_value: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
