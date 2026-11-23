@@ -1,13 +1,17 @@
 # pylint: disable=too-many-arguments,too-many-locals
 
 import base64
+import uuid
 import io
 from dataclasses import dataclass, field
 import math
 from pathlib import Path
+from typing import Any
 import numexpr
 import numpy as np
 import pandas as pd
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from langchain.tools import tool, ToolRuntime
 from matplotlib.figure import Figure
 from app.tools.DSCReader import (
@@ -18,24 +22,55 @@ from app.tools.GlassTransitionAnalysis import find_glass_transition
 from app.tools.MeltingPointAnalysis import find_melting_point
 from app.tools.EnthalpyAnalysis import analyze_enthalpy, plot_enthalpy
 from app.tools.HeatingRate import calculate_heating_rate, plot_heating_rate
+from app.db.models import DSCFile
+from app.db.session import get_db
+from app.services.ingest import apply_user_metadata
+from app.services.session_runs import write_session_files
+from app.services.results_store import PendingResult
+from app.services.llm_tools_results import stash_result, RESULT_TOOLS
+
+MASS_UNITS = {"mg", "g", "ug"}
+RATE_UNITS = {"C/min", "K/min", "C/s", "K/s"}
 
 
 @dataclass
 class SessionContext:
-    """Per-session state, passed to every tool call. Changes made by tools persist."""
-
     session_id: str
     # Directory where the session's uploaded files are stored
     upload_dir: Path | None = None
-    # File names (not paths) of the uploaded DSC files, relative to upload_dir
     current_dsc_file: str | None = None
     dsc_files_available: list[str] = field(default_factory=list)
+    file_ids: dict[str, uuid.UUID] = field(default_factory=dict)
+    # (file name, tool name) -> results computed but not yet saved
+    pending: dict[tuple[str, str], Any] = field(default_factory=dict)
+    # counts user messages; lets confirm_delete_file demand a later turn than the request
+    turn: int = 0
+    delete_request: dict | None = None
+    notices: list[str] = field(default_factory=list)
 
     def dsc_file_path(self, file_name: str) -> str:
-        """Construct the full path of an uploaded DSC file from its name."""
         if self.upload_dir is None:
             return file_name
         return str(self.upload_dir / file_name)
+
+
+def _open_questions(metadata) -> str | None:
+    """Text listing what must be settled with the user before any enthalpy is reported."""
+    if not metadata:
+        return None
+
+    def items(key: str) -> list[str]:
+        value = metadata.get(key)  # an empty CSV cell is read back as NaN
+        if not isinstance(value, str):
+            return []
+        return [item for item in value.split(";") if item]
+
+    parts = []
+    if missing := items("missing"):
+        parts.append("missing: " + ", ".join(missing))
+    if unconfirmed := items("unconfirmed"):
+        parts.append("needs the user's confirmation: " + ", ".join(unconfirmed))
+    return "; ".join(parts) or None
 
 
 def _meta_float(metadata, *keys):
@@ -48,6 +83,98 @@ def _meta_float(metadata, *keys):
         if np.isfinite(value):
             return value
     return None
+
+
+@tool(
+    "set_metadata",
+    description=(
+        "Record metadata the USER told you for the currently selected DSC file, using "
+        "their exact values and units. Call it whenever the user answers a question about "
+        "sample mass, heating rate, endotherm direction, heat-flow unit or temperature "
+        "unit. Never call it with a value the user did not state. sample_mass_unit is "
+        "mg, g or ug; heating_rate_unit is C/min, K/min, C/s or K/s; endothermic_direction "
+        "is 'up' or 'down' (the way endothermic peaks point on the plot); "
+        "heat_flow_normalized is true when the heat flow is already per gram (mW/mg or W/g). "
+        "Use confirm to accept a value found in the file as it is, e.g. "
+        "['temperature_unit'] or ['sample_mass'] after the user agrees."
+    ),
+)
+async def set_metadata(
+    runtime: ToolRuntime,
+    sample_mass: float | None = None,
+    sample_mass_unit: str | None = None,
+    heating_rate: float | None = None,
+    heating_rate_unit: str | None = None,
+    endothermic_direction: str | None = None,
+    heat_flow_normalized: bool | None = None,
+    temperature_unit: str | None = None,
+    confirm: list[str] | None = None,
+) -> str:
+    ctx = runtime.context
+    name = ctx.current_dsc_file
+    file_id = ctx.file_ids.get(name) if name else None
+    if file_id is None:
+        return "No DSC file is currently selected."
+
+    changes: dict = {}
+    if sample_mass is not None:
+        unit = (sample_mass_unit or "mg").replace("µ", "u").lower()
+        if sample_mass <= 0 or unit not in MASS_UNITS:
+            return f"Sample mass must be positive, in mg, g or ug (got {sample_mass} {unit})."
+        changes |= {"sample_mass_value": sample_mass, "sample_mass_unit": unit}
+    if heating_rate is not None:
+        unit = (
+            (heating_rate_unit or "C/min")
+            .replace("°", "")
+            .replace("c", "C")
+            .replace("k", "K")
+        )
+        if heating_rate <= 0 or unit not in RATE_UNITS:
+            return f"Heating rate must be positive, in C/min, K/min, C/s or K/s (got {heating_rate} {unit})."
+        changes |= {"heating_rate_value": heating_rate, "heating_rate_unit": unit}
+    if endothermic_direction is not None:
+        if endothermic_direction.lower() not in ("up", "down"):
+            return "endothermic_direction must be 'up' or 'down'."
+        changes["endothermic_direction"] = endothermic_direction.lower()
+    if heat_flow_normalized is not None:
+        changes["is_mass_normalized"] = heat_flow_normalized
+    if temperature_unit is not None:
+        unit = temperature_unit.replace("°", "").upper()
+        if unit not in ("C", "K", "F"):
+            return "temperature_unit must be C, K or F."
+        changes["temperature_unit"] = unit
+    if not changes and not confirm:
+        return "Nothing to record: no value or confirmation was given."
+
+    async for db in get_db():
+        db_file = (
+            await db.execute(
+                select(DSCFile)
+                .options(selectinload(DSCFile.metadata_record))
+                .where(DSCFile.file_id == file_id)
+            )
+        ).scalar_one_or_none()
+        if db_file is None:
+            return f"File '{name}' is no longer in the database."
+        result = await apply_user_metadata(db, db_file, changes, confirm)
+
+    table = pd.read_csv(ctx.dsc_file_path(name))
+    write_session_files(
+        Path(ctx.upload_dir),
+        name,
+        table,
+        result.metadata,
+        result.unconfirmed,
+        result.warnings,
+    )
+
+    left = list(result.missing_critical_fields) + list(result.unconfirmed)
+    state = (
+        "Still open: " + ", ".join(left)
+        if left
+        else "All required metadata is now known."
+    )
+    return f"Saved for '{name}': {', '.join(changes) or 'confirmations'}. {state}"
 
 
 @tool(
@@ -69,9 +196,9 @@ def _meta_float(metadata, *keys):
 )
 def enthalpy_analysis(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     runtime: ToolRuntime[SessionContext],
-    endo_up: bool,
+    endo_up: bool | None = None,
     sample_mass: float | None = None,
-    heat_flow_normalized: bool = False,
+    heat_flow_normalized: bool | None = None,
     heating_rate: float | None = None,
     event: str = "endothermic",
     t_min: float | None = None,
@@ -88,6 +215,21 @@ def enthalpy_analysis(  # pylint: disable=too-many-arguments,too-many-positional
         metadata = read_standardized_dsc_metadata(file_path)
     except (OSError, ValueError, pd.errors.ParserError) as exc:
         return f"Could not read DSC file '{file_name}': {exc}"
+
+    questions = _open_questions(metadata)
+    if endo_up is None and metadata and not pd.isna(metadata.get("endo_up")):
+        endo_up = bool(metadata["endo_up"])
+    if (
+        heat_flow_normalized is None
+        and metadata
+        and not pd.isna(metadata.get("heat_flow_normalized"))
+    ):
+        heat_flow_normalized = bool(metadata["heat_flow_normalized"])
+    heat_flow_normalized = bool(heat_flow_normalized)
+    if endo_up is None:
+        return "Whether endothermic peaks point up or down is not known. Ask the user."
+    if metadata and "heat_flow_unit" in str(metadata.get("unconfirmed", "")):
+        return "The heat-flow unit is not confirmed (mW or per gram). Ask the user, then call set_metadata."
 
     if heating_rate is None:
         heating_rate = _meta_float(metadata, "heating_rate", "heating_rate_C_per_min")
@@ -145,6 +287,43 @@ def enthalpy_analysis(  # pylint: disable=too-many-arguments,too-many-positional
     fig = plot_enthalpy(result)
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight")
+
+    stash_result(
+        runtime,
+        PendingResult(
+            tool_name="enthalpy_analysis",
+            event_type="melting" if event == "endothermic" else "crystallization",
+            thermal_direction=event,
+            fields={
+                "onset_temp_value": fit.t_onset,
+                "peak_temp_value": fit.t_peak,
+                "endset_temp_value": fit.t_endset,
+                "enthalpy_value": fit.dH_J_per_g,
+                "enthalpy_error_value": fit.dH_J_per_g_err,
+                "delta_cp_value": fit.params["dCp"],
+                "delta_cp_unit": "W/(g·K)",
+                "is_drug_normalized": False,  # J per gram of TOTAL sample
+            },
+            params={
+                "heating_rate": heating_rate,
+                "sample_mass_mg": sample_mass,
+                "heat_flow_normalized": heat_flow_normalized,
+                "endo_up": endo_up,
+                "event": event,
+                "window": list(result.window),
+                "t_min": t_min,
+                "t_max": t_max,
+                "fit_dcp": fit_dcp,
+                "Tm0": fit.Tm0,
+                "r_squared": fit.r_squared,
+            },
+            summary=summary,
+            png=buf.getvalue(),
+            confidence=max(0.0, min(1.0, fit.r_squared)),
+            notes=None if result.ok else "Quality check not passed.",
+        ),
+    )
+
     return [
         {"type": "text", "text": summary},
         {
@@ -153,6 +332,8 @@ def enthalpy_analysis(  # pylint: disable=too-many-arguments,too-many-positional
             "mime_type": "image/png",
         },
     ]
+
+
 def _heating_rate_arrays(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray] | None:
     """Return finite temperature/time pairs, or None when they are unavailable."""
     required = ("time_min", "temperature_C")
@@ -172,7 +353,14 @@ def _heating_rate_arrays(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray] | No
 )
 def dsc_file_status(runtime: ToolRuntime[SessionContext]) -> str:
     context = runtime.context
-    return f"Available DSC Files: {', '.join(context.dsc_files_available)}, Current: {context.current_dsc_file}"
+    text = (
+        f"Available DSC Files: {', '.join(context.dsc_files_available)}, "
+        f"Current: {context.current_dsc_file}"
+    )
+    if context.notices:
+        text += "\n" + "\n".join(context.notices)
+        context.notices.clear()
+    return text
 
 
 @tool(
@@ -205,7 +393,11 @@ def get_metadata(runtime: ToolRuntime[SessionContext]) -> str:
     if not metadata:
         return f"No metadata available for DSC file '{file_name}'."
 
-    return f"Metadata for '{file_name}': {metadata}"
+    text = f"Metadata for '{file_name}': {metadata}"
+    questions = _open_questions(metadata)
+    if questions:
+        text += f"\nOpen questions: {questions}. Ask the user, then call set_metadata."
+    return text
 
 
 @tool(
@@ -482,7 +674,7 @@ def melting_point_analysis(
     decline_start, decline_end = result["decline_region"]
     temperature = data["Temperature"]
 
-    return (
+    text = (
         f"Melting point of '{file_name}': {melting_t:.2f} °C "
         f"(heat flow {melting_heat_flow:.4f} mW). "
         f"Baseline fitted over {temperature[plateau_start]:.2f} to "
@@ -490,6 +682,31 @@ def melting_point_analysis(
         f"Decline fitted over {temperature[decline_start]:.2f} to "
         f"{temperature[decline_end]:.2f} °C, slope {result['decline_fit'][0]:.4f} mW/°C."
     )
+
+    stash_result(
+        runtime,
+        PendingResult(
+            tool_name="melting_point_analysis",
+            event_type="melting",
+            thermal_direction="endothermic",
+            fields={"onset_temp_value": melting_t},
+            params={
+                "smoothing_window": smoothing_window,
+                "heat_flow_at_point_mW": melting_heat_flow,
+                "plateau_region_C": [
+                    float(temperature[plateau_start]),
+                    float(temperature[plateau_end]),
+                ],
+                "decline_region_C": [
+                    float(temperature[decline_start]),
+                    float(temperature[decline_end]),
+                ],
+            },
+            summary=text,
+            notes="Onset = intersection of the pre-peak baseline and the decline tangent.",
+        ),
+    )
+    return text
 
 
 @tool(
@@ -527,7 +744,7 @@ def glass_transition_analysis(runtime: ToolRuntime[SessionContext]) -> str:
     except (ValueError, TypeError, IndexError, np.linalg.LinAlgError) as exc:
         return f"Glass transition analysis failed for '{file_name}': {exc}"
 
-    return (
+    text = (
         f"Glass transition of '{file_name}': Tg = {gt.tg:.2f} °C "
         f"(midpoint between onset and endset). "
         f"Onset {gt.t_onset:.2f} °C, endset {gt.t_endset:.2f} °C, "
@@ -537,6 +754,30 @@ def glass_transition_analysis(runtime: ToolRuntime[SessionContext]) -> str:
         f"step height {gt.hf_pre - gt.hf_post:.4f} mW. "
         f"Tangent slope at inflection {gt.slope:.4f} mW/°C."
     )
+
+    stash_result(
+        runtime,
+        PendingResult(
+            tool_name="glass_transition_analysis",
+            event_type="glass_transition",
+            thermal_direction="step_change",
+            fields={
+                "onset_temp_value": gt.t_onset,
+                "endset_temp_value": gt.t_endset,
+                "midpoint_temp_value": gt.tg,
+                "inflection_temp_value": gt.t_inflection,
+            },
+            params={
+                "hf_pre_mW": gt.hf_pre,
+                "hf_post_mW": gt.hf_post,
+                "step_height_mW": gt.hf_pre - gt.hf_post,
+                "slope_mW_per_C": gt.slope,
+            },
+            summary=text,
+        ),
+    )
+
+    return text
 
 
 @tool(
@@ -569,4 +810,6 @@ TOOLS = [
     get_calculated_heating_rate,
     get_plot_heating_rate,
     calculator,
+    set_metadata,
+    *RESULT_TOOLS,
 ]

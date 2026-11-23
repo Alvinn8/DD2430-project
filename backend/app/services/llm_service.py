@@ -19,6 +19,9 @@ from langchain.messages import (
 from app.config import settings
 from app.models import ImageInput
 from app.services.llm_tools import TOOLS, SessionContext
+from app.services.ingest import ingest_file, load_table
+from app.services.session_runs import unique_local_name, write_session_files
+from app.services.results_store import count_runs
 
 basepath = path.dirname(__file__)
 with open(
@@ -131,30 +134,50 @@ class LLMSession:
         self.messages: list[AnyMessage] = [SystemMessage(content=SYSTEM_PROMPT)]
         self._lock = asyncio.Lock()
 
-    def register_uploaded_file(self, filename: str, data: bytes) -> str:
-        """Persist an uploaded file and make it available to the analysis tools."""
-        safe_name = Path(filename).name or "uploaded-file"
-        destination = self._upload_dir / safe_name
-        suffix = 1
-        while destination.exists():
-            destination = (
-                self._upload_dir
-                / f"{Path(safe_name).stem}-{suffix}{Path(safe_name).suffix}"
-            )
-            suffix += 1
+    async def ingest_uploaded_file(
+        self, db, filename: str, data: bytes, sidecar: bytes | None = None
+    ) -> str:
+        """Ingest through the shared path and expose the result to the tools. Returns the local name."""
+        result = await ingest_file(db, data, filename, sidecar_bytes=sidecar)
 
-        destination.write_bytes(data)
-        if destination.name.endswith("_metadata.csv"):
-            # Metadata is read alongside its data file, so it is not selectable on its own
-            return destination.name
-        self.context.dsc_files_available.append(destination.name)
-        self.context.current_dsc_file = destination.name
-        return destination.name
+        if result.already_existed:
+            n = await count_runs(db, result.db_file.file_id)
+            self.context.notices.append(
+                f"'{filename}' was already uploaded on {result.db_file.created_at:%Y-%m-%d} "
+                f"with {n} saved analysis run(s); the stored copy is used."
+            )
+
+        table = (
+            result.table
+            if result.table is not None
+            else await load_table(result.db_file)
+        )
+        ctx = self.context
+        local = next(
+            (n for n, fid in ctx.file_ids.items() if fid == result.db_file.file_id),
+            None,
+        ) or unique_local_name(ctx.dsc_files_available, filename)
+        write_session_files(
+            self._upload_dir,
+            local,
+            table,
+            result.metadata,
+            result.unconfirmed,
+            result.warnings,
+        )
+        ctx.file_ids[local] = result.db_file.file_id
+        if local not in ctx.dsc_files_available:
+            ctx.dsc_files_available.append(local)
+        ctx.current_dsc_file = local
+        return local
 
     def remove_uploaded_file(self, filename: str) -> None:
-        """Remove an uploaded file from this session's analysis context."""
         name = Path(filename).name
         (self._upload_dir / name).unlink(missing_ok=True)
+        (self._upload_dir / (name.removesuffix(".csv") + "_metadata.csv")).unlink(
+            missing_ok=True
+        )
+        self.context.file_ids.pop(name, None)
         if name in self.context.dsc_files_available:
             self.context.dsc_files_available.remove(name)
         if self.context.current_dsc_file == name:
@@ -172,6 +195,8 @@ class LLMSession:
         - {"type": "tool_call", "id": ..., "name": ..., "args": {...}}: a tool is called
         - {"type": "tool_result", "id": ..., "text": ..., "images": [data URLs]}: its result
         """
+
+        self.context.turn += 1
 
         content: list[str | dict] = [{"type": "text", "text": prompt}]
 
