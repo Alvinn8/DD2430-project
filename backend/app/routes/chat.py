@@ -6,6 +6,13 @@ from starlette.datastructures import UploadFile
 from app.models import ChatRequest, ImageInput
 from app.config import settings
 from app.services.llm_service import LLMService, LLMSession
+from app.db.session import get_db
+from app.services.ingest import (
+    UnsupportedFileError,
+    is_dsc_candidate,
+    is_sidecar,
+    pair_sidecars,
+)
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
 llm_service = LLMService()
@@ -21,23 +28,27 @@ def should_send_to_llm_context(mime_type: str) -> bool:
 async def save_uploads(
     session: LLMSession, files: list[UploadFile]
 ) -> list[ImageInput] | None:
-    """
-    Save uploaded files for the tools. Returns the files to send to the model inline,
-    and the names of the data files that the model reaches through the tools instead.
-    """
     if not files:
         return None
     images: list[ImageInput] = []
+    data_files: list[tuple[str, bytes]] = []
     for file in files:
-        if not file.content_type:
-            raise HTTPException(
-                status_code=400, detail="Attached file has no MIME type."
-            )
-        file_data = await file.read()
-        if file.content_type == "text/csv":
-            session.register_uploaded_file(file.filename or "uploaded-file", file_data)
-        if should_send_to_llm_context(file.content_type):
-            images.append(ImageInput(data=file_data, mime_type=file.content_type))
+        data = await file.read()
+        name = file.filename or "uploaded-file"
+        mime = file.content_type or ""
+        if should_send_to_llm_context(mime):
+            images.append(ImageInput(data=data, mime_type=mime))
+        elif is_dsc_candidate(name) or is_sidecar(name):
+            data_files.append((name, data))
+
+    groups = pair_sidecars(data_files)
+    if groups:
+        async for db in get_db():
+            for name, data, sidecar in groups:
+                try:
+                    await session.ingest_uploaded_file(db, name, data, sidecar)
+                except UnsupportedFileError as exc:
+                    raise HTTPException(status_code=422, detail=str(exc)) from exc
     return images
 
 
